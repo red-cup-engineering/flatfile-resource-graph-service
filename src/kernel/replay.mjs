@@ -6,6 +6,7 @@ import { validateWitness } from "./witness.mjs";
 import { logDates, readLog } from "@red-cup-engineering/semiotic-eavt-services-section/store";
 import { dataArtifactFiles } from "@red-cup-engineering/eavt-services-section/data-artifact-listing";
 import { FOUR, four, joinKnowledgeWire } from "@red-cup-engineering/computer-data-engineering-services-section/four";
+import { termToJson } from "@red-cup-engineering/computer-data-engineering-services-section/semiotic-expression-notation/json-codec";
 
 // Deterministic replay: fold the append-only event log into in-memory
 // state (design spec S4, S11; Addendum ruling 5). "Events are the source
@@ -121,11 +122,16 @@ function daysOf(root, channel) {
 // in day-partition-then-append order — streamSeavt itself already gives
 // append order within one (channel, day) file (its own derived trace);
 // concatenating days in sorted order extends that to the whole channel.
+// A journal coordinate as the substrate wrote it: semiotic-eavt rows carry each coordinate as a SEN
+// term (seavtOfJson), read back as the JSON value it encodes; a row written before carries the
+// plain value, read as it is.
+const coordinate = (value) => (Array.isArray(value) ? termToJson(value) : value);
+
 function readChannel(root, channel) {
   const lines = [];
   for (const day of daysOf(root, channel)) {
     try {
-      for (const { line } of readLog(root, channel, day)) lines.push({ e: line.e, a: line.a, v: line.v, t: line.at });
+      for (const { line } of readLog(root, channel, day)) lines.push({ e: coordinate(line.e), a: coordinate(line.a), v: coordinate(line.v), t: line.at });
     } catch (error) {
       throw new CorruptedLogLineError(`channel ${channel}: unreadable journal line: ${error.message}`);
     }
