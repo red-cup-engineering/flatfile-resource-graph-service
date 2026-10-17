@@ -36,6 +36,7 @@ test("seed-world constitutes a record's entities once and is idempotent", () => 
 }));
 
 test("a recorded observation is what look answers from, with history kept and nothing overwritten", () => withTrace((trace) => {
+  const [{ address: seeded }] = seedWorld({ path: trace, record: { measuredAt: "2026-08-30", entities: [{ kind: "machine", attributes: { name: "cold-red-gate", kind: "vps" } }] } });
   const attempt = { at: "2026-10-17T00:59:00.000Z", actor: "emsenn", outcome: "received", generation: GEN_A, compositionCommit: "c".repeat(40) };
   const first = recordHostObservation({ path: trace, status: status(GEN_A, "active", [attempt]), t: 1000, observer: "test" });
   assert.equal(first.units, 1);
@@ -45,7 +46,8 @@ test("a recorded observation is what look answers from, with history kept and no
   assert.equal(third.attempts, 0, "a release attempt already recorded is not recorded twice");
 
   const looked = lookWorld(trace, "cold-red-gate");
-  assert.equal(looked.address, first.host);
+  assert.equal(first.host, seeded, "the observation attaches to the seeded machine, not a second entity");
+  assert.equal(looked.address, seeded);
   assert.equal(looked.placeObserved["live-generation"].value, third.generation);
   assert.equal(looked.placeObserved["store-free-percent"].value, 25);
   const unit = looked.things.find((thing) => thing.attributes.name === "relay.service");
