@@ -23,7 +23,7 @@ const key = (row) => JSON.stringify([row.e, row.a, row.v, row.t]);
 export function migrateLegacyWorld({ from, path }) {
   if (typeof from !== "string" || typeof path !== "string" || from === "" || path === "") throw new TypeError("migrate-legacy-world: from and path must be non-empty strings");
   if (from === path) throw new TypeError("migrate-legacy-world: from and path must differ; the legacy file is never rewritten");
-  const present = new Set(existsSync(path) ? readEavtEntries({ path }).map(key) : []);
+  const present = new Set(existsSync(path) ? readEavtEntries({ path }, { strict: true }).map(key) : []);
   const lines = readFileSync(from, "utf8").split("\n").filter((line) => line !== "");
   const result = { read: lines.length, appended: 0, skipped: 0, refused: [] };
   lines.forEach((line, index) => {

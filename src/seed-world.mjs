@@ -43,7 +43,7 @@ export function seedWorld({ path, record }) {
   assertWorldRecord(record);
   let already;
   try {
-    already = new Set(readEavtEntries({ path }).filter((row) => row.a === "constituted").map((row) => row.e));
+    already = new Set(readEavtEntries({ path }, { strict: true }).filter((row) => row.a === "constituted").map((row) => row.e));
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
     already = new Set();
