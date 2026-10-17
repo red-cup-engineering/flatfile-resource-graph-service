@@ -64,7 +64,7 @@ export function markdownDirectoryProvider({
               return [];
             }
             return [makeCell({
-              subject: focus, predicate: edge.kind,
+              subject: resource, predicate: edge.kind,
               object: qualifiedFocus(owner, matches[0].path),
             })];
           });
