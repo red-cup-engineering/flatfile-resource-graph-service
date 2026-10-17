@@ -20,7 +20,7 @@ export function seatBriefSourceProviders({ brief, root, namespace, id }) {
   sourceNamespace(namespace);
   const json = selectSeatBriefJsonSources(brief);
   const markdown = new Map();
-  let workOmitted = 0, ambiguityOmitted = 0;
+  let workOmitted = 0, ambiguityOmitted = 0, metadataOmitted = 0;
   const workAmbiguities = [];
   const consider = pin => {
     if (pin === null || !pin.path.endsWith(".md")) return;
@@ -30,6 +30,14 @@ export function seatBriefSourceProviders({ brief, root, namespace, id }) {
     markdown.set(pin.path, pin.digest);
   };
   for (const seat of brief.seats) {
+    for (const field of ["moreReportsTo", "moreAuthorityScope", "moreDuties",
+      "moreSkills", "moreReceivesFrom", "moreAssignsTo", "moreEnterprises"]) {
+      const omitted = seat[field] ?? 0;
+      if (!Number.isSafeInteger(omitted) || omitted < 0 ||
+        !Number.isSafeInteger(metadataOmitted + omitted))
+        throw new TypeError("seat brief metadata remainder is not a bounded source reading");
+      metadataOmitted += omitted;
+    }
     if (!Number.isSafeInteger(seat.moreWork) || seat.moreWork < 0 ||
         !Number.isSafeInteger(workOmitted + seat.moreWork))
       throw new TypeError("seat brief has no bounded Work Arena omission count");
@@ -77,11 +85,11 @@ export function seatBriefSourceProviders({ brief, root, namespace, id }) {
     jsonSources: json.sources,
     markdownSources,
     unresolved,
-    omitted: json.omitted, workOmitted,
+    omitted: json.omitted, workOmitted, metadataOmitted,
     workAmbiguities: Object.freeze(workAmbiguities), ambiguityOmitted,
     sourcesComplete: unresolved.length === 0 && json.omitted === 0,
     complete: unresolved.length === 0 && json.omitted === 0 && workOmitted === 0
-      && workAmbiguities.length === 0 && ambiguityOmitted === 0,
+      && metadataOmitted === 0 && workAmbiguities.length === 0 && ambiguityOmitted === 0,
   });
 }
 
@@ -99,7 +107,8 @@ export async function observeSeatBriefResources(input, { observedAt } = {}) {
       kind: plan.kind, bearer: plan.bearer,
       jsonSources: plan.jsonSources, markdownSources: plan.markdownSources,
       unresolved: plan.unresolved, omitted: plan.omitted,
-      workOmitted: plan.workOmitted, workAmbiguities: plan.workAmbiguities,
+      workOmitted: plan.workOmitted, metadataOmitted: plan.metadataOmitted,
+      workAmbiguities: plan.workAmbiguities,
       ambiguityOmitted: plan.ambiguityOmitted, sourcesComplete: plan.sourcesComplete,
       complete: plan.complete,
     }),
