@@ -32,7 +32,13 @@ export function markdownDirectoryProvider({
   const pinByPath = new Map(selected?.map(({ path, digest }) => [path, digest]) ?? []);
   return defineProvider({ id, async observe({ observedAt = new Date().toISOString() } = {}) {
     const include = selected === undefined ? includeFile : input => pinByPath.has(input.path) && (includeFile === undefined || includeFile(input));
-    const { notes, diagnostics } = await loadFlatfiles(root, { excludes, maxDepth, includeFile: include });
+    const { notes, diagnostics } = await loadFlatfiles(root, {
+      excludes, maxDepth, includeFile: include,
+      ...(selected === undefined ? {} : {
+        maxSourceBytes: 1_048_576,
+        maxBatchBytes: 16 * 1_048_576,
+      }),
+    });
     if (selected !== undefined) {
       // Missing, unparsed and changed records are not a successful partial corpus.
       if (notes.length !== selected.length || notes.some(note => pinByPath.get(note.path) !== note.revision))
