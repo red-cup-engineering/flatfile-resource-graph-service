@@ -37,6 +37,7 @@ export function markdownDirectoryProvider({
       ...(selected === undefined ? {} : {
         maxSourceBytes: 1_048_576,
         maxBatchBytes: 16 * 1_048_576,
+        allowPlain: true,
       }),
     });
     if (selected !== undefined) {
