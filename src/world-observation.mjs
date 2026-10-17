@@ -55,7 +55,7 @@ const OBSERVED = new Set(OBSERVED_ATTRIBUTES);
 
 function readRows(path) {
   try {
-    return readEavtEntries({ path });
+    return readEavtEntries({ path }, { strict: true });
   } catch (error) {
     if (error?.code === "ENOENT") return [];
     throw error;

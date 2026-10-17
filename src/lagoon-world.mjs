@@ -20,7 +20,7 @@ export function findWorldAddressByName(rows, name) {
 
 /** Read a named place and its settled occupants from a Flatfile EAVT world. */
 export function lookWorld(tracePath, placeName, { recentDutyLimit = 10 } = {}) {
-  const rows = readEavtEntries({ path: tracePath });
+  const rows = readEavtEntries({ path: tracePath }, { strict: true });
   const address = findWorldAddressByName(rows, placeName);
   if (address === undefined) {
     return Object.freeze({ place: placeName, address: null, placeAttributes: null, placeObserved: {}, things: Object.freeze([]) });
@@ -50,7 +50,7 @@ export function lookWorld(tracePath, placeName, { recentDutyLimit = 10 } = {}) {
 
 /** Append one location assertion for an already constituted world actor. */
 export function moveInWorld(tracePath, actor, placeName, t) {
-  const rows = readEavtEntries({ path: tracePath });
+  const rows = readEavtEntries({ path: tracePath }, { strict: true });
   const address = findWorldAddressByName(rows, placeName);
   if (address === undefined) throw new TypeError(`moveInWorld: no constituted place named ${JSON.stringify(placeName)}`);
   const row = { e: actor, a: "located-in", v: address, t };
@@ -60,7 +60,7 @@ export function moveInWorld(tracePath, actor, placeName, t) {
 
 /** Constitute and append a world utterance attributed to its speaker and place. */
 export function speakInWorld(tracePath, speaker, placeName, text, t) {
-  const rows = readEavtEntries({ path: tracePath });
+  const rows = readEavtEntries({ path: tracePath }, { strict: true });
   const place = findWorldAddressByName(rows, placeName);
   if (place === undefined) throw new TypeError(`speakInWorld: no constituted place named ${JSON.stringify(placeName)}`);
   const { address, genesis: genesisRow } = constitute({ kind: "utterance", attributes: { text }, t });

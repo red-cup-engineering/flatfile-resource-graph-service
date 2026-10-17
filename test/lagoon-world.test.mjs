@@ -2,7 +2,7 @@
 // this package's lagoon-world (the owner of look, go and say), against synthetic traces in a tmp dir.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { constitute } from "@red-cup-engineering/eavt-services-section/constitute-entity";
@@ -114,4 +114,10 @@ test("say constitutes an utterance attributed to its speaker and place, three ro
   const folded = foldEavtEvidence({ subject: said.address, rows: readEavtEntries({ path: trace }) });
   assert.equal(folded.fiber.find((c) => c.predicate === "spoken-by").object, speaker.address);
   assert.throws(() => speakInWorld(trace, speaker.address, "no-such-place", "hello", 11), TypeError);
+}));
+
+test("a world file in the legacy row encoding is refused, not read as an empty world", () => withTrace((trace) => {
+  writeFileSync(trace, "pGFhaWNvbnN0aXR1dGVkYWVpbWFjaGluZTp4YXQBYXalZG5hbWVhbQ==\n");
+  assert.throws(() => lookWorld(trace, "anything"), /unreadable line.*legacy base64/u);
+  assert.throws(() => moveInWorld(trace, "thing:x", "anything", 1), /unreadable line/u);
 }));
