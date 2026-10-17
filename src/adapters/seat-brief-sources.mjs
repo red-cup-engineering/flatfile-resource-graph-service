@@ -20,7 +20,8 @@ export function seatBriefSourceProviders({ brief, root, namespace, id }) {
   sourceNamespace(namespace);
   const json = selectSeatBriefJsonSources(brief);
   const markdown = new Map();
-  let workOmitted = 0;
+  let workOmitted = 0, ambiguityOmitted = 0;
+  const workAmbiguities = [];
   const consider = pin => {
     if (pin === null || !pin.path.endsWith(".md")) return;
     const prior = markdown.get(pin.path);
@@ -33,6 +34,26 @@ export function seatBriefSourceProviders({ brief, root, namespace, id }) {
         !Number.isSafeInteger(workOmitted + seat.moreWork))
       throw new TypeError("seat brief has no bounded Work Arena omission count");
     workOmitted += seat.moreWork;
+    const collisions = seat.ambiguousEnterprises ?? [];
+    const further = seat.moreAmbiguousEnterprises ?? 0;
+    if (!Array.isArray(collisions) || !Number.isSafeInteger(further) || further < 0 ||
+        !Number.isSafeInteger(ambiguityOmitted + further))
+      throw new TypeError("seat brief enterprise identity ambiguity is malformed");
+    ambiguityOmitted += further;
+    for (const collision of collisions) {
+      if (typeof collision?.id !== "string" || !collision.id ||
+          !Array.isArray(collision.candidates) || collision.candidates.length < 2 ||
+          collision.candidates.length > 8 ||
+          collision.candidates.some(key => typeof key !== "string" || !key) ||
+          !Number.isSafeInteger(collision.moreCandidates) || collision.moreCandidates < 0)
+        throw new TypeError("sovereign enterprise player candidates are malformed");
+      if (workAmbiguities.length < 64) workAmbiguities.push(Object.freeze({
+        office: seat.office, id: collision.id,
+        candidates: Object.freeze([...collision.candidates]),
+        moreCandidates: collision.moreCandidates,
+      }));
+      else ambiguityOmitted += 1;
+    }
     consider(seat.source);
     for (const group of ["duties", "skills", "works"])
       for (const entry of seat.sourceRecords[group].records) consider(entry.source);
@@ -57,8 +78,10 @@ export function seatBriefSourceProviders({ brief, root, namespace, id }) {
     markdownSources,
     unresolved,
     omitted: json.omitted, workOmitted,
+    workAmbiguities: Object.freeze(workAmbiguities), ambiguityOmitted,
     sourcesComplete: unresolved.length === 0 && json.omitted === 0,
-    complete: unresolved.length === 0 && json.omitted === 0 && workOmitted === 0,
+    complete: unresolved.length === 0 && json.omitted === 0 && workOmitted === 0
+      && workAmbiguities.length === 0 && ambiguityOmitted === 0,
   });
 }
 
@@ -76,7 +99,8 @@ export async function observeSeatBriefResources(input, { observedAt } = {}) {
       kind: plan.kind, bearer: plan.bearer,
       jsonSources: plan.jsonSources, markdownSources: plan.markdownSources,
       unresolved: plan.unresolved, omitted: plan.omitted,
-      workOmitted: plan.workOmitted, sourcesComplete: plan.sourcesComplete,
+      workOmitted: plan.workOmitted, workAmbiguities: plan.workAmbiguities,
+      ambiguityOmitted: plan.ambiguityOmitted, sourcesComplete: plan.sourcesComplete,
       complete: plan.complete,
     }),
   });
