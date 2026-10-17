@@ -1,6 +1,6 @@
 {
   "name": "@red-cup-engineering/flatfile-resource-graph-service",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "EAVT resource-graph engine over markdown vaults, systemd units, Linux processes and package.json workspaces, with closure rules for cycles, orphans, broken links and stubs.",
   "type": "module",
   "license": "UNLICENSED",
