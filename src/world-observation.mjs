@@ -10,8 +10,10 @@
 // seen in the unbroken run of identical observations that ends at the current one.
 //
 // Entities (constituted once each, by content address; found again by their attributes):
-//   host             attributes {name}
-//   generation       attributes {name: store basename, storePath}              located-in host
+//   machine          attributes {name, ...}  the host itself. It is the machine entity seed-world
+//                    constituted from the machine record; constituted here as {name} only when no
+//                    machine of that name exists yet, so `look <host>` finds one entity, never two.
+//   generation       attributes {name: store basename, storePath}              located-in machine
 //   unit             attributes {name: "<unit>.service", host: host name}      located-in host
 //   release-attempt  attributes {name: "release <host> <at>", host, at, outcome, actor?, builder?,
 //                    target?, machine?, profile?, compositionCommit?, hostCommit?, reason?,
@@ -19,11 +21,11 @@
 //                    (an attempt is one immutable fact: it is constituted whole, never re-observed)
 //
 // Observed rows (re-appended at every observation, a new t each time):
-//   host        observed-by      the observer (string, e.g. "status.mjs@<hostname>")
-//   host        profile          the Guix profile path observed
-//   host        link             the profile symlink target, or "none"
-//   host        live-generation  address of the generation entity live there, or "none"
-//   host        store-free-percent / store-size-bytes / store-avail-bytes   (when df answered)
+//   machine     observed-by      the observer (string, e.g. "status.mjs@<hostname>")
+//   machine     profile          the Guix profile path observed
+//   machine     link             the profile symlink target, or "none"
+//   machine     live-generation  address of the generation entity live there, or "none"
+//   machine     store-free-percent / store-size-bytes / store-avail-bytes   (when df answered)
 //   unit        state            systemd is-active answer: active, failed, inactive, ... , or
 //                                "not-observed" when a unit seen before is absent from this
 //                                observation (the absence is recorded, the unit is not forgotten)
@@ -123,7 +125,7 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
     return address;
   };
 
-  const host = ensure("host", { name: status.host });
+  const host = genesisRows(rows).find((row) => row.e.startsWith("machine:") && row.v?.name === status.host)?.e ?? ensure("machine", { name: status.host });
   const place = (address) => append({ e: address, a: "located-in", v: host, t: Math.min(t, rows.find((r) => r.e === address && r.a === "constituted")?.t ?? t) }, { once: true });
 
   // Generation live on the host.
