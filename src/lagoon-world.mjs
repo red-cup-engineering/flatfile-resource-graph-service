@@ -4,6 +4,7 @@ import { foldEavtEvidence } from "@red-cup-engineering/eavt-services-section/fol
 import { entities } from "@red-cup-engineering/eavt-services-section/list-entities";
 import { readEavtEntries } from "@red-cup-engineering/eavt-services-section/read-eavt-entries";
 import { relateEavtRows } from "@red-cup-engineering/eavt-services-section/relate-eavt-rows";
+import { observedStateOf } from "./world-observation.mjs";
 
 function attributesOf(address, rows) {
   return foldEavtEvidence({ subject: address, rows }).fiber.find((cell) => cell.predicate === "constituted")?.object;
@@ -22,12 +23,14 @@ export function lookWorld(tracePath, placeName, { recentDutyLimit = 10 } = {}) {
   const rows = readEavtEntries({ path: tracePath });
   const address = findWorldAddressByName(rows, placeName);
   if (address === undefined) {
-    return Object.freeze({ place: placeName, address: null, placeAttributes: null, things: Object.freeze([]) });
+    return Object.freeze({ place: placeName, address: null, placeAttributes: null, placeObserved: {}, things: Object.freeze([]) });
   }
   const thing = (entity) => Object.freeze({
     address: entity,
     attributes: attributesOf(entity, rows),
     fiber: foldEavtEvidence({ subject: entity, rows, converse: {} }).fiber,
+    // Current observed values with their history kept in the trace: {attribute: {value, t, since}}.
+    observed: observedStateOf(rows, entity),
   });
   const genesisT = (entity) => rows.find((row) => row.e === entity && row.a === "constituted")?.t;
   const recentDuties = relateEavtRows({ rows, predicate: "reported-at", object: address }).subjects
@@ -39,6 +42,7 @@ export function lookWorld(tracePath, placeName, { recentDutyLimit = 10 } = {}) {
     place: placeName,
     address,
     placeAttributes: attributesOf(address, rows),
+    placeObserved: observedStateOf(rows, address),
     things: Object.freeze(relateEavtRows({ rows, predicate: "located-in", object: address }).subjects.map(thing)),
     recentDuties: Object.freeze(recentDuties),
   });
