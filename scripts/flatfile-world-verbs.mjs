@@ -14,6 +14,7 @@
 
 import * as lagoonWorld from "../src/lagoon-world.mjs";
 import { readWorldRecord, seedWorld } from "../src/seed-world.mjs";
+import { migrateLegacyWorld } from "../src/legacy-world.mjs";
 import { recordHostObservation, OBSERVATION_SCHEMA } from "../src/world-observation.mjs";
 import { REFUSAL_SCHEMA } from "@red-cup-engineering/computer-data-engineering-services-section/operation-refusal-schema";
 
@@ -138,4 +139,20 @@ recordHostObservationVerb.spec = {
 };
 recordHostObservationVerb.effects = ["filesystem:read", "filesystem:write"];
 
-export { seedWorldVerb as "seed-world", recordHostObservationVerb as "record-host-observation" };
+// carry a world trace written in the old base64-CBOR row encoding into the current row encoding,
+// preserving every row exactly; the legacy file is only read.
+function migrateLegacyWorldVerb({ from, path }) {
+  return migrateLegacyWorld({ from, path });
+}
+migrateLegacyWorldVerb.spec = {
+  args: { type: "object", properties: { from: { type: "string" }, path: { type: "string" } }, required: ["from", "path"] },
+  returns: {
+    type: "object",
+    properties: { read: { type: "number" }, appended: { type: "number" }, skipped: { type: "number" }, refused: { type: "array" } },
+    required: ["read", "appended", "skipped", "refused"],
+  },
+  refusal: REFUSAL_SCHEMA,
+};
+migrateLegacyWorldVerb.effects = ["filesystem:read", "filesystem:write"];
+
+export { seedWorldVerb as "seed-world", recordHostObservationVerb as "record-host-observation", migrateLegacyWorldVerb as "migrate-legacy-world" };
