@@ -79,3 +79,25 @@ test("the record-host-observation verb carries the schema name and refuses a sta
   assert.equal(JSON.stringify(verbs["record-host-observation"].spec.args.required), '["path","status","t"]');
   assert.ok(readFileSync(trace, "utf8").length > 0);
 }));
+
+test("migrate-legacy-world carries base64-CBOR rows into the current encoding unchanged, once", async () => {
+  const { encodeCanonical } = await import("@red-cup-engineering/cbor-services-section");
+  return withTrace((trace, dir) => {
+    const legacy = path.join(dir, "legacy.eavt");
+    const rows = [
+      { a: "constituted", e: "machine:legacy-address", t: 1788048000000, v: { kind: "vps", name: "cold-red-gate" } },
+      { a: "located-in", e: "workbench:legacy-bench", t: 1788048000005, v: "machine:legacy-address" },
+    ];
+    writeFileSync(legacy, `${rows.map((row) => Buffer.from(encodeCanonical(row)).toString("base64")).join("\n")}\n`);
+    assert.equal(readEavtEntries({ path: legacy }).length, 0, "the current reader cannot see the legacy encoding");
+    const first = verbs["migrate-legacy-world"]({ from: legacy, path: trace });
+    assert.deepEqual([first.read, first.appended, first.skipped, first.refused.length], [2, 2, 0, 0]);
+    assert.deepEqual(readEavtEntries({ path: trace }).map(({ e, a, v, t }) => ({ a, e, t, v })), rows);
+    assert.deepEqual(verbs["migrate-legacy-world"]({ from: legacy, path: trace }), { read: 2, appended: 0, skipped: 2, refused: [] });
+    // the migrated machine is the one an observation attaches to and look finds by name
+    const observed = recordHostObservation({ path: trace, status: status(GEN_A, "active"), t: 9 });
+    assert.equal(observed.host, "machine:legacy-address");
+    assert.equal(lookWorld(trace, "cold-red-gate").address, "machine:legacy-address");
+    assert.throws(() => verbs["migrate-legacy-world"]({ from: legacy, path: legacy }), /must differ/);
+  });
+});

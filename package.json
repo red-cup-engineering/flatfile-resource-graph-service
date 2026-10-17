@@ -1,6 +1,6 @@
 {
   "name": "@red-cup-engineering/flatfile-resource-graph-service",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "EAVT resource-graph engine over markdown vaults, systemd units, Linux processes and package.json workspaces, with closure rules for cycles, orphans, broken links and stubs.",
   "type": "module",
   "license": "UNLICENSED",
@@ -20,7 +20,8 @@
     "@red-cup-engineering/read-markdown-structure-service": "0.2.0",
     "@red-cup-engineering/semiotic-eavt-services-section": "0.1.1",
     "@red-cup-engineering/signcell": "0.4.2",
-    "@red-cup-engineering/uri-services-section": "0.1.1"
+    "@red-cup-engineering/uri-services-section": "0.1.1",
+    "@red-cup-engineering/cbor-services-section": "0.1.1"
   },
   "exports": {
     "./inspection": "./src/inspect-resource.mjs",
@@ -59,7 +60,8 @@
     "./substrate/read-flatfiles": "./src/substrate/read-flatfiles.mjs",
     "./package.json": "./package.json",
     "./world-observation": "./src/world-observation.mjs",
-    "./seed-world": "./src/seed-world.mjs"
+    "./seed-world": "./src/seed-world.mjs",
+    "./legacy-world": "./src/legacy-world.mjs"
   },
   "files": [
     "src/",
