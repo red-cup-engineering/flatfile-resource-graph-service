@@ -6,21 +6,11 @@ import { parseJsonValue } from "@red-cup-engineering/json-services-section/parse
 import { makeCell } from "../kernel/cells.mjs";
 import { projectAttributeCells } from "../provider/attribute-projection.mjs";
 import { defineProvider } from "../provider/provider.mjs";
+import { sourceNamespace } from "../provider/source-namespace.mjs";
 
 const MAX_SOURCE_BYTES = 1_048_576;
 const MAX_SOURCE_COUNT = 4096;
 const MAX_BATCH_BYTES = 16 * 1_048_576;
-
-function sourceNamespace(value) {
-  if (typeof value !== "string" || !value.trim()) throw new TypeError("a source-owned namespace is required");
-  let uri;
-  try { uri = new URL(value); }
-  catch { throw new TypeError("source namespace must be a qualified absolute URI"); }
-  if (!["https:", "urn:"].includes(uri.protocol) || uri.username || uri.password || uri.search || uri.hash) {
-    throw new TypeError("source namespace must be an HTTPS or URN identifier without credentials, query or fragment");
-  }
-  return value;
-}
 
 function sourceSelections(sources) {
   if (!Array.isArray(sources) || sources.length < 1 || sources.length > MAX_SOURCE_COUNT) {
