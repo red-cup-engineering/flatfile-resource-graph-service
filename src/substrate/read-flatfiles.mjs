@@ -31,12 +31,14 @@ function deriveKind(fm, parentName) {
 // pure edge-building over the notes this reads lives in store.mjs's
 // buildEdges; this module is only the disk read that feeds it.
 export async function loadFlatfiles(root, { excludes = DEFAULT_EXCLUDES, maxDepth, includeFile,
-  maxSourceBytes, maxBatchBytes } = {}) {
+  maxSourceBytes, maxBatchBytes, allowPlain = false } = {}) {
   for (const [key, value] of [["maxSourceBytes", maxSourceBytes], ["maxBatchBytes", maxBatchBytes]]) {
     if (value !== undefined && (!Number.isSafeInteger(value) || value < 1))
       throw new TypeError(`flatfile ${key} must be a positive safe integer`);
   }
   const strict = maxSourceBytes !== undefined || maxBatchBytes !== undefined;
+  if (typeof allowPlain !== "boolean" || (allowPlain && !strict))
+    throw new TypeError("plain Markdown admission requires an explicit bounded source read");
   const observedRoot = strict ? await realpath(root) : root;
   const walk = await walkPosixPaths({ root: observedRoot, excludes, maxDepth, includeFile });
   const notes = [];
@@ -77,7 +79,11 @@ export async function loadFlatfiles(root, { excludes = DEFAULT_EXCLUDES, maxDept
       diagnostics.push({ code: "frontmatter-parse", path: entry.path, message: err.message });
       continue;
     }
-    if (fm === null) continue;
+    if (fm === null && !allowPlain) continue;
+    // A pinned plain document carries exact bytes and body, not inferred
+    // governance frontmatter or an office kind from its parent directory.
+    const unstructured = fm === null;
+    if (unstructured) fm = {};
     const segments = entry.path.split("/");
     const fileName = segments.at(-1);
     const parentName = segments.length >= 2 ? segments.at(-2) : "";
@@ -88,7 +94,7 @@ export async function loadFlatfiles(root, { excludes = DEFAULT_EXCLUDES, maxDept
     notes.push(makeFlatfile({
       slug: deriveSlug(fileName, parentName),
       dir: parentName,
-      kind: deriveKind(fm, parentName),
+      kind: unstructured ? "flatfile" : deriveKind(fm, parentName),
       fm,
       body,
       path: entry.path,
