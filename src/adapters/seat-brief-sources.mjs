@@ -20,6 +20,7 @@ export function seatBriefSourceProviders({ brief, root, namespace, id }) {
   sourceNamespace(namespace);
   const json = selectSeatBriefJsonSources(brief);
   const markdown = new Map();
+  let workOmitted = 0;
   const consider = pin => {
     if (pin === null || !pin.path.endsWith(".md")) return;
     const prior = markdown.get(pin.path);
@@ -28,6 +29,10 @@ export function seatBriefSourceProviders({ brief, root, namespace, id }) {
     markdown.set(pin.path, pin.digest);
   };
   for (const seat of brief.seats) {
+    if (!Number.isSafeInteger(seat.moreWork) || seat.moreWork < 0 ||
+        !Number.isSafeInteger(workOmitted + seat.moreWork))
+      throw new TypeError("seat brief has no bounded Work Arena omission count");
+    workOmitted += seat.moreWork;
     consider(seat.source);
     for (const group of ["duties", "skills", "works"])
       for (const entry of seat.sourceRecords[group].records) consider(entry.source);
@@ -51,8 +56,9 @@ export function seatBriefSourceProviders({ brief, root, namespace, id }) {
     jsonSources: json.sources,
     markdownSources,
     unresolved,
-    omitted: json.omitted,
-    complete: unresolved.length === 0 && json.omitted === 0,
+    omitted: json.omitted, workOmitted,
+    sourcesComplete: unresolved.length === 0 && json.omitted === 0,
+    complete: unresolved.length === 0 && json.omitted === 0 && workOmitted === 0,
   });
 }
 
@@ -70,6 +76,7 @@ export async function observeSeatBriefResources(input, { observedAt } = {}) {
       kind: plan.kind, bearer: plan.bearer,
       jsonSources: plan.jsonSources, markdownSources: plan.markdownSources,
       unresolved: plan.unresolved, omitted: plan.omitted,
+      workOmitted: plan.workOmitted, sourcesComplete: plan.sourcesComplete,
       complete: plan.complete,
     }),
   });
