@@ -45,14 +45,24 @@ test("a source-pinned Markdown provider only admits its selected file and exact 
   }), /qualified source-owner namespace/);
 });
 
-test("a pinned Markdown source must exist as a valid authored note", async t => {
-  const root = await fixture(t, { "office.md": office, "prose.md": "No frontmatter here.\n" });
-  for (const path of ["absent.md", "prose.md"]) {
-    await assert.rejects(markdownDirectoryProvider({
-      id: "missing", root, namespace: "urn:561:colony:alpha",
-      pins: [{ path, digest: revisionOf(path === "prose.md" ? "No frontmatter here.\n" : office) }],
-    }).observe(), /source missing or changed/);
-  }
+test("a pinned plain Markdown method retains its body without invented governing frontmatter", async t => {
+  const body = "No frontmatter here.\n";
+  const root = await fixture(t, { "office.md": office, "prose.md": body });
+  await assert.rejects(markdownDirectoryProvider({
+    id: "missing", root, namespace: "urn:561:colony:alpha",
+    pins: [{ path: "absent.md", digest: revisionOf(office) }],
+  }).observe(), /source missing or changed/);
+  const plain = (await markdownDirectoryProvider({
+    id: "plain", root, namespace: "urn:561:colony:alpha",
+    pins: [{ path: "prose.md", digest: revisionOf(body) }],
+  }).observe()).resources[0];
+  assert.equal(plain.cells.find(c => c.predicate === "urn:fars:source-revision").object, revisionOf(body));
+  assert.ok(plain.cells.some(c => c.predicate === "urn:fars:body-content-id"));
+  assert.equal(plain.cells.some(c => c.predicate.startsWith("urn:fars:attribute:")), false,
+    "plain prose must not acquire office, skill or authority fields by inference");
+  const unpinned = (await markdownDirectoryProvider({ id: "legacy", root }).observe()).resources;
+  assert.equal(unpinned.some(record => record.focus === "prose"), false,
+    "legacy unpinned parsing still skips no-frontmatter files");
 });
 
 test("exact Markdown observation refuses oversized or non-UTF8 carriers", async t => {
