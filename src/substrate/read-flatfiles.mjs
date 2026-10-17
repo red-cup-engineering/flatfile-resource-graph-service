@@ -1,4 +1,5 @@
 import { readFile, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { walkPosixPaths } from "@red-cup-engineering/computer-filepath-engineering-services-section/walk-posix-paths";
 import { DEFAULT_EXCLUDES } from "./store.mjs";
@@ -36,9 +37,11 @@ export async function loadFlatfiles(root, { excludes = DEFAULT_EXCLUDES, maxDept
   for (const entry of walk.files) {
     if (entry.kind !== "file" || !entry.path.endsWith(".md")) continue;
     const absolutePath = join(root, entry.path);
-    let text;
+    let text, revision;
     try {
-      text = await readFile(absolutePath, "utf8");
+      const bytes = await readFile(absolutePath);
+      text = bytes.toString("utf8");
+      revision = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
     } catch (err) {
       diagnostics.push({ code: "file-read-error", path: entry.path, message: err.message });
       continue;
@@ -64,7 +67,7 @@ export async function loadFlatfiles(root, { excludes = DEFAULT_EXCLUDES, maxDept
       fm,
       body,
       path: entry.path,
-      mtime,
+      mtime, revision,
     }));
   }
   return { notes, diagnostics };
