@@ -29,8 +29,8 @@ function deriveKind(fm, parentName) {
 // exists but fails to parse is reported as a diagnostic and skipped. The
 // pure edge-building over the notes this reads lives in store.mjs's
 // buildEdges; this module is only the disk read that feeds it.
-export async function loadFlatfiles(root, { excludes = DEFAULT_EXCLUDES } = {}) {
-  const walk = await walkPosixPaths({ root, excludes });
+export async function loadFlatfiles(root, { excludes = DEFAULT_EXCLUDES, maxDepth, includeFile } = {}) {
+  const walk = await walkPosixPaths({ root, excludes, maxDepth, includeFile });
   const notes = [];
   const diagnostics = [];
   for (const entry of walk.files) {
