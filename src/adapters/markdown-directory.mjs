@@ -1,15 +1,15 @@
 import { defineProvider } from "../provider/provider.mjs";
 import { makeCell } from "../kernel/cells.mjs";
-import { buildEdges } from "../substrate/store.mjs";
+import { buildEdges, DEFAULT_EXCLUDES } from "../substrate/store.mjs";
 import { loadFlatfiles } from "../substrate/read-flatfiles.mjs";
 import { RELATION_KEYS } from "../convention.mjs";
 import { projectAttributeCells } from "../provider/attribute-projection.mjs";
 import { identity } from "../kernel/identity.mjs";
 
 /** The old whole-directory Markdown loader, seated as one ordinary provider. */
-export function markdownDirectoryProvider({ id, root, excludes, sources = ["fm", "body"], relationKeys = RELATION_KEYS }) {
+export function markdownDirectoryProvider({ id, root, excludes, maxDepth, includeFile, sources = ["fm", "body"], relationKeys = RELATION_KEYS }) {
   return defineProvider({ id, async observe({ observedAt = new Date().toISOString() } = {}) {
-    const { notes, diagnostics } = await loadFlatfiles(root, { excludes });
+    const { notes, diagnostics } = await loadFlatfiles(root, { excludes, maxDepth, includeFile });
     const edges = buildEdges(notes, { sources, relationKeys });
     const edgesBySource = Map.groupBy(edges, (edge) => edge.src);
     const resources = notes.map((note) => {
@@ -29,6 +29,22 @@ export function markdownDirectoryProvider({ id, root, excludes, sources = ["fm",
     });
     return Object.freeze({ resources: Object.freeze(resources), diagnostics: Object.freeze(diagnostics) });
   } });
+}
+
+/** Observe one explicitly named root Markdown file through the same provider.
+ * The named capability also lets consumers refuse older, unbounded suppliers
+ * at import time, before relaxing any exclusion for this source projection. */
+export function markdownRootFileProvider({ id, root, basename, sources, relationKeys }) {
+  if (typeof basename !== "string" || basename.length === 0 ||
+      basename === "." || basename === ".." || /[\\/\u0000]/u.test(basename)) {
+    throw new TypeError("basename must name one root file without path separators");
+  }
+  return markdownDirectoryProvider({
+    id, root, sources, relationKeys,
+    excludes: DEFAULT_EXCLUDES.filter((name) => name !== basename),
+    maxDepth: 0,
+    includeFile: ({ path }) => path === basename,
+  });
 }
 
 
