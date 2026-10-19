@@ -75,8 +75,7 @@
   "private": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/red-cup-engineering/computer-content-engineering-services-section.git",
-    "directory": "services/flatfile-resource-graph-service"
+    "url": "git+https://github.com/red-cup-engineering/flatfile-resource-graph-service.git"
   },
   "bin": {
     "flatfile-resource-graph": "./scripts/flatfile-resource-graph-cli.mjs"
