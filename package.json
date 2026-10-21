@@ -3,7 +3,7 @@
   "version": "0.1.10",
   "description": "Source-pinned JSON and flatfile EAVT resource graph with native CLI, provider observations, and closure rules for cycles, orphans, broken links and stubs.",
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "node": ">=22.18"
   },
@@ -79,5 +79,9 @@
   },
   "bin": {
     "flatfile-resource-graph": "./scripts/flatfile-resource-graph-cli.mjs"
+  },
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/561-group/.github/blob/main/TIPS.md"
   }
 }
