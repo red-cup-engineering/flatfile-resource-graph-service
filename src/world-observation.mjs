@@ -127,26 +127,61 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
       || new Set(holds.map(value => value.unit)).size !== holds.length)
     throw new TypeError("record-host-observation: invalid or unqualified native hold inventory");
 
-  let rows = readRows(path);
+  // Index the original append-only snapshot ONCE, then update these local
+  // indexes only after the original durable append succeeds. This changes no
+  // custodian, row identity, journal order, or fsync/acknowledgement boundary.
+  const rows = [...readRows(path)];
+  const ever = new Set(), atTime = new Set();
+  const genesis = [], byKind = new Map(), bornAt = new Map(), latest = new Map();
+  const key = (parts) => JSON.stringify(parts);
+  const remember = (row) => {
+    const value = JSON.stringify(row.v);
+    ever.add(key([row.e, row.a, value]));
+    atTime.add(key([row.e, row.a, row.t, value]));
+    if (row.a === "constituted") {
+      genesis.push(row);
+      if (!bornAt.has(row.e)) bornAt.set(row.e, row.t);
+      const kind = row.e.slice(0, row.e.indexOf(":"));
+      if (!byKind.has(kind)) byKind.set(kind, new Map());
+      const group = byKind.get(kind);
+      if (!group.has(row.v?.name)) group.set(row.v?.name, []);
+      group.get(row.v?.name).push(row);
+    }
+    if (OBSERVED.has(row.a)) {
+      const coordinate = key([row.e, row.a]);
+      const previous = latest.get(coordinate);
+      if (!previous || row.t >= previous.t) latest.set(coordinate, row);
+    }
+  };
+  for (const row of rows) remember(row);
+  const last = (entity, attribute) => latest.get(key([entity, attribute]));
   const appended = { count: 0 };
   const append = (row, { once = false } = {}) => {
-    if (once && rows.some((have) => have.e === row.e && have.a === row.a && JSON.stringify(have.v) === JSON.stringify(row.v))) return;
-    if (rows.some((have) => have.e === row.e && have.a === row.a && have.t === row.t && JSON.stringify(have.v) === JSON.stringify(row.v))) return;
+    const value = JSON.stringify(row.v);
+    if ((once && ever.has(key([row.e, row.a, value])))
+      || atTime.has(key([row.e, row.a, row.t, value]))) return;
     appendEavtRow({ path, row });
-    rows = [...rows, row];
+    rows.push(row);
+    remember(row);
     appended.count += 1;
   };
-  // An entity is found by kind + attributes; constituted (at the instant first seen) when absent.
+  // Names are a lookup hint, never an identity or authorization substitute.
+  // The original full attribute equality check still chooses the entity.
+  const candidates = (kind, name) => byKind.get(kind)?.get(name) ?? [];
   const ensure = (kind, attributes, at = t) => {
-    const found = genesisRows(rows).find((row) => row.e.startsWith(`${kind}:`) && sameAttributes(row.v, attributes) && Object.keys(row.v).length === Object.keys(attributes).length);
+    const found = candidates(kind, attributes.name).find((row) =>
+      row.e.startsWith(`${kind}:`) && sameAttributes(row.v, attributes) &&
+      Object.keys(row.v).length === Object.keys(attributes).length);
     if (found) return found.e;
-    const { address, genesis } = constitute({ kind, attributes, t: at });
-    append(genesis);
+    const { address, genesis: created } = constitute({ kind, attributes, t: at });
+    append(created);
     return address;
   };
 
-  const host = genesisRows(rows).find((row) => row.e.startsWith("machine:") && row.v?.name === status.host)?.e ?? ensure("machine", { name: status.host });
-  const place = (address) => append({ e: address, a: "located-in", v: host, t: Math.min(t, rows.find((r) => r.e === address && r.a === "constituted")?.t ?? t) }, { once: true });
+  const host = candidates("machine", status.host)
+    .find((row) => row.e.startsWith("machine:"))?.e ?? ensure("machine", { name: status.host });
+  const place = (address) => append({ e: address, a: "located-in", v: host,
+    t: Math.min(t, bornAt.get(address) ?? t) }, { once: true });
 
   // Generation live on the host.
   let generation = null;
@@ -164,7 +199,7 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
   append({ e: host, a: "link", v: status.link ?? "none", t });
   append({ e: host, a: "live-generation", v: generation ?? "none", t });
   if (hasHoldReading) append({ e: host, a: "hold-inventory-complete", v: status.holdInventoryComplete, t });
-  else if (observedStateOf(rows, host)["hold-inventory-complete"])
+  else if (last(host, "hold-inventory-complete"))
     append({ e: host, a: "hold-inventory-complete", v: "unknown", t });
   if (status.disk) {
     append({ e: host, a: "store-free-percent", v: status.disk.freePercent, t });
@@ -181,9 +216,9 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
     append({ e: address, a: "state", v: state ?? "unknown", t });
     if (generation) append({ e: address, a: "runs-generation", v: generation, t });
   }
-  for (const row of genesisRows(rows)) {
+  for (const row of genesis) {
     if (!row.e.startsWith("unit:") || row.v?.host !== status.host || seen.has(row.v.name)) continue;
-    if (observedStateOf(rows, row.e).state?.value !== "not-observed") append({ e: row.e, a: "state", v: "not-observed", t });
+    if (last(row.e, "state")?.v !== "not-observed") append({ e: row.e, a: "state", v: "not-observed", t });
   }
   // Held-only units are real source-observed Things even when the generation is
   // unavailable. Do not invent a running status or an affirmative native guard.
@@ -191,20 +226,20 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
   for (const unit of marked) {
     const address = ensure("unit", { name: unit, host: status.host });
     place(address);
-    if (!seen.has(unit) && !observedStateOf(rows, address).state)
+    if (!seen.has(unit) && !last(address, "state"))
       append({ e: address, a: "state", v: "not-observed", t });
   }
   if (hasHoldReading) {
-    for (const row of genesisRows(rows)) {
+    for (const row of genesis) {
       if (!row.e.startsWith("unit:") || row.v?.host !== status.host) continue;
       append({ e: row.e, a: "admission-hold-marker",
         v: marked.has(row.v.name) ? "present" : status.holdInventoryComplete ? "absent" : "unknown", t });
     }
   } else {
     // An old producer cannot keep a previously observed hold "present" forever.
-    for (const row of genesisRows(rows)) {
+    for (const row of genesis) {
       if (!row.e.startsWith("unit:") || row.v?.host !== status.host) continue;
-      if (observedStateOf(rows, row.e)["admission-hold-marker"])
+      if (last(row.e, "admission-hold-marker"))
         append({ e: row.e, a: "admission-hold-marker", v: "unknown", t });
     }
   }
