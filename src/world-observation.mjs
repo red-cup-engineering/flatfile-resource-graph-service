@@ -117,9 +117,11 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
   const hasHoldReading = Object.hasOwn(status, "holdInventoryComplete");
   const holds = status.holds ?? [];
   if ((hasHoldReading && typeof status.holdInventoryComplete !== "boolean")
+      || (hasHoldReading && !Array.isArray(status.holds))
       || !Array.isArray(holds) || (!hasHoldReading && status.holds !== undefined)
       || holds.length > 256
       || holds.some(value => !value || typeof value !== "object" ||
+          typeof value.unit !== "string" ||
           !/^[A-Za-z0-9_.@-]+\.(?:service|timer|socket|target|path|mount)$/u.test(value.unit) ||
           value.markerPresent !== true)
       || new Set(holds.map(value => value.unit)).size !== holds.length)
