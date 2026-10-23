@@ -72,13 +72,7 @@ function readRows(path) {
  * Current value of every observed attribute of one entity: {attribute: {value, t, since}}.
  * Pure; the entity's older rows are left untouched and are still in the trace.
  */
-export function observedStateOf(rows, address) {
-  const byAttribute = new Map();
-  rows.forEach((row, index) => {
-    if (row.e !== address || !OBSERVED.has(row.a)) return;
-    if (!byAttribute.has(row.a)) byAttribute.set(row.a, []);
-    byAttribute.get(row.a).push({ ...row, index });
-  });
+function foldObservedAttributes(byAttribute) {
   const state = {};
   for (const [attribute, list] of byAttribute) {
     list.sort((left, right) => left.t - right.t || left.index - right.index);
@@ -89,6 +83,34 @@ export function observedStateOf(rows, address) {
     state[attribute] = { value: latest.v, t: latest.t, since };
   }
   return state;
+}
+
+export function observedStateOf(rows, address) {
+  const byAttribute = new Map();
+  rows.forEach((row, index) => {
+    if (row.e !== address || !OBSERVED.has(row.a)) return;
+    if (!byAttribute.has(row.a)) byAttribute.set(row.a, []);
+    byAttribute.get(row.a).push({ ...row, index });
+  });
+  return foldObservedAttributes(byAttribute);
+}
+
+/** Bulk World reading: one history pass for all Things rather than one pass
+ * per Thing. Retains the exact time/tie/since semantics of observedStateOf.
+ * This is a transient read index, NOT independent memory or custody. */
+export function observedStatesIndex(rows) {
+  const byEntity = new Map();
+  rows.forEach((row, index) => {
+    if (!OBSERVED.has(row.a)) return;
+    if (!byEntity.has(row.e)) byEntity.set(row.e, new Map());
+    const attributes = byEntity.get(row.e);
+    if (!attributes.has(row.a)) attributes.set(row.a, []);
+    attributes.get(row.a).push({ ...row, index });
+  });
+  const result = new Map();
+  for (const [address, attributes] of byEntity)
+    result.set(address, foldObservedAttributes(attributes));
+  return result;
 }
 
 function genesisRows(rows) {
