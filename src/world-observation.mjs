@@ -30,6 +30,12 @@
 //                                "not-observed" when a unit seen before is absent from this
 //                                observation (the absence is recorded, the unit is not forgotten)
 //   unit        runs-generation  address of the generation whose store path the unit file names
+//   machine     hold-inventory-complete  true/false when explicitly observed, "unknown" on later
+//                    legacy reads that cannot sustain a prior assertion.
+//   unit        admission-hold-marker  "present" (original profile marker observed), "absent"
+//                    (complete directory scan proves no marker), or "unknown" (incomplete or
+//                    later legacy scan). A marker is NOT proof of an effective systemd guard,
+//                    a live holder, or independently received Work.
 //
 // Immutable rows (appended once, skipped when the identical e/a/v already exists):
 //   generation  composition-commit, host-commit, promoted-by, built-by, promoted-at
@@ -47,7 +53,7 @@ export const OBSERVATION_SCHEMA = "lagoon-observation/1";
 export const OBSERVED_ATTRIBUTES = Object.freeze([
   "observed-by", "profile", "link", "live-generation",
   "store-free-percent", "store-size-bytes", "store-avail-bytes",
-  "state", "runs-generation",
+  "state", "runs-generation", "hold-inventory-complete", "admission-hold-marker",
 ]);
 
 const STORE = /^\/gnu\/store\/[0-9a-z]{32}-[A-Za-z0-9+._-]+$/u;
@@ -106,6 +112,18 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
   }
   const units = status.units ?? [], history = status.history ?? [];
   if (!Array.isArray(units) || !Array.isArray(history)) throw new TypeError("record-host-observation: status.units and status.history must be arrays");
+  // Absence of a legacy field is not a complete inventory. Validate before
+  // writing any source facts, so malformed observed holds have zero effects.
+  const hasHoldReading = Object.hasOwn(status, "holdInventoryComplete");
+  const holds = status.holds ?? [];
+  if ((hasHoldReading && typeof status.holdInventoryComplete !== "boolean")
+      || !Array.isArray(holds) || (!hasHoldReading && status.holds !== undefined)
+      || holds.length > 256
+      || holds.some(value => !value || typeof value !== "object" ||
+          !/^[A-Za-z0-9_.@-]+\\.(?:service|timer|socket|target|path|mount)$/u.test(value.unit) ||
+          value.markerPresent !== true)
+      || new Set(holds.map(value => value.unit)).size !== holds.length)
+    throw new TypeError("record-host-observation: invalid or unqualified native hold inventory");
 
   let rows = readRows(path);
   const appended = { count: 0 };
@@ -143,6 +161,9 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
   if (typeof status.profile === "string") append({ e: host, a: "profile", v: status.profile, t });
   append({ e: host, a: "link", v: status.link ?? "none", t });
   append({ e: host, a: "live-generation", v: generation ?? "none", t });
+  if (hasHoldReading) append({ e: host, a: "hold-inventory-complete", v: status.holdInventoryComplete, t });
+  else if (observedStateOf(rows, host)["hold-inventory-complete"])
+    append({ e: host, a: "hold-inventory-complete", v: "unknown", t });
   if (status.disk) {
     append({ e: host, a: "store-free-percent", v: status.disk.freePercent, t });
     append({ e: host, a: "store-size-bytes", v: status.disk.size, t });
@@ -161,6 +182,29 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
   for (const row of genesisRows(rows)) {
     if (!row.e.startsWith("unit:") || row.v?.host !== status.host || seen.has(row.v.name)) continue;
     if (observedStateOf(rows, row.e).state?.value !== "not-observed") append({ e: row.e, a: "state", v: "not-observed", t });
+  }
+  // Held-only units are real source-observed Things even when the generation is
+  // unavailable. Do not invent a running status or an affirmative native guard.
+  const marked = new Set(holds.map(hold => hold.unit));
+  for (const unit of marked) {
+    const address = ensure("unit", { name: unit, host: status.host });
+    place(address);
+    if (!seen.has(unit) && !observedStateOf(rows, address).state)
+      append({ e: address, a: "state", v: "not-observed", t });
+  }
+  if (hasHoldReading) {
+    for (const row of genesisRows(rows)) {
+      if (!row.e.startsWith("unit:") || row.v?.host !== status.host) continue;
+      append({ e: row.e, a: "admission-hold-marker",
+        v: marked.has(row.v.name) ? "present" : status.holdInventoryComplete ? "absent" : "unknown", t });
+    }
+  } else {
+    // An old producer cannot keep a previously observed hold "present" forever.
+    for (const row of genesisRows(rows)) {
+      if (!row.e.startsWith("unit:") || row.v?.host !== status.host) continue;
+      if (observedStateOf(rows, row.e)["admission-hold-marker"])
+        append({ e: row.e, a: "admission-hold-marker", v: "unknown", t });
+    }
   }
 
   // Release attempts: each an immutable fact, constituted at its own recorded instant.
