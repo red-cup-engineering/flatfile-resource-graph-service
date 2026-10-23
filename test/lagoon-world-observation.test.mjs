@@ -160,6 +160,9 @@ test("invalid or unqualified hold observations refuse before appending world fac
   const base = status(GEN_A, "active");
   const invalid = [
     { holds: [{ unit: "alpha.service", markerPresent: true }] },
+    { holdInventoryComplete: true },
+    { holdInventoryComplete: true, holds: null },
+    { holdInventoryComplete: true, holds: [{ unit: ["alpha.service"], markerPresent: true }] },
     { holdInventoryComplete: "true", holds: [] },
     { holdInventoryComplete: false, holds: "alpha.service" },
     { holdInventoryComplete: true, holds: [{ unit: "../wrong.service", markerPresent: true }] },
