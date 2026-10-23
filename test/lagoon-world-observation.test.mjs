@@ -101,3 +101,81 @@ test("migrate-legacy-world carries base64-CBOR rows into the current encoding un
     assert.throws(() => verbs["migrate-legacy-world"]({ from: legacy, path: legacy }), /must differ/);
   });
 });
+
+test("native held-unit markers become their original World Things without asserting service or Work state", () => withTrace(trace => {
+  const observed = { ...status(GEN_A, "inactive"),
+    holds: [{ unit: "relay.service", markerPresent: true },
+      { unit: "held-only.service", markerPresent: true }],
+    holdInventoryComplete: true };
+  const result = recordHostObservation({ path: trace, status: observed, t: 1000 });
+  assert.equal(result.units, 1, "a marker is not an observed systemd unit");
+  const world = lookWorld(trace, "cold-red-gate");
+  assert.equal(world.placeObserved["hold-inventory-complete"].value, true);
+  const relay = world.things.find(item => item.attributes.name === "relay.service");
+  assert.equal(relay.observed.state.value, "inactive");
+  assert.equal(relay.observed["admission-hold-marker"].value, "present");
+  const hidden = world.things.find(item => item.attributes.name === "held-only.service");
+  assert.equal(hidden.observed.state.value, "not-observed");
+  assert.equal(hidden.observed["admission-hold-marker"].value, "present");
+  assert.equal(hidden.observed["runs-generation"], undefined,
+    "a held-only service has no observed running generation");
+}));
+
+test("incomplete and legacy inventory never silently clear or preserve a stale held observation", () => withTrace(trace => {
+  const base = status(GEN_A, "active");
+  const withHolds = (time, holds, complete) => recordHostObservation({
+    path: trace, t: time,
+    status: { ...base, units: [], holds: holds.map(unit => ({ unit, markerPresent: true })),
+      holdInventoryComplete: complete },
+  });
+  withHolds(1000, ["alpha.service", "beta.service"], true);
+  withHolds(2000, ["alpha.service"], false);
+  let observed = lookWorld(trace, "cold-red-gate");
+  assert.equal(observed.placeObserved["hold-inventory-complete"].value, false);
+  assert.equal(observed.things.find(x => x.attributes.name === "alpha.service")
+    .observed["admission-hold-marker"].value, "present");
+  assert.equal(observed.things.find(x => x.attributes.name === "beta.service")
+    .observed["admission-hold-marker"].value, "unknown");
+  withHolds(3000, [], true);
+  observed = lookWorld(trace, "cold-red-gate");
+  for (const name of ["alpha.service", "beta.service"])
+    assert.equal(observed.things.find(x => x.attributes.name === name)
+      .observed["admission-hold-marker"].value, "absent");
+  assert.equal(observed.placeObserved["hold-inventory-complete"].value, true);
+  recordHostObservation({ path: trace, status: { ...base, units: [] }, t: 4000 });
+  observed = lookWorld(trace, "cold-red-gate");
+  assert.equal(observed.placeObserved["hold-inventory-complete"].value, "unknown");
+  for (const name of ["alpha.service", "beta.service"])
+    assert.equal(observed.things.find(x => x.attributes.name === name)
+      .observed["admission-hold-marker"].value, "unknown");
+  const rows = readEavtEntries({ path: trace });
+  const alpha = observed.things.find(x => x.attributes.name === "alpha.service").address;
+  assert.deepEqual(rows.filter(row => row.e === alpha && row.a === "admission-hold-marker")
+    .map(row => [row.v, row.t]), [
+      ["present", 1000], ["present", 2000], ["absent", 3000], ["unknown", 4000],
+    ]);
+}));
+
+test("invalid or unqualified hold observations refuse before appending world facts", () => withTrace(trace => {
+  const base = status(GEN_A, "active");
+  const invalid = [
+    { holds: [{ unit: "alpha.service", markerPresent: true }] },
+    { holdInventoryComplete: "true", holds: [] },
+    { holdInventoryComplete: false, holds: "alpha.service" },
+    { holdInventoryComplete: true, holds: [{ unit: "../wrong.service", markerPresent: true }] },
+    { holdInventoryComplete: true, holds: [{ unit: "alpha.service", markerPresent: false }] },
+    { holdInventoryComplete: true, holds: [
+      { unit: "alpha.service", markerPresent: true }, { unit: "alpha.service", markerPresent: true },
+    ] },
+    { holdInventoryComplete: false, holds: Array.from({ length: 257 }, (_, i) => ({
+      unit: "unit" + i + ".service", markerPresent: true,
+    })) },
+  ];
+  for (const [i, extra] of invalid.entries()) {
+    assert.throws(() => recordHostObservation({
+      path: trace, status: { ...base, ...extra }, t: i + 1,
+    }), /hold inventory/);
+    assert.equal(readEavtEntries({ path: trace }).length, 0,
+      "malformed hold observations cannot create partial World records");
+  }
+}));
