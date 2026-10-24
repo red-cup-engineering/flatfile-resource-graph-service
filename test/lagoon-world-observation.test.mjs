@@ -248,16 +248,16 @@ test("whole-world readout preserves exact independent observation states after h
 
 test("original live-process release evidence persists independently of unit-file generation", () => withTrace(trace => {
   const active = { ...status(GEN_A, "active"),
-    units: [{ unit: "relay.service", state: "active", generationWitness: "process-command-observed" }] };
+    units: [{ unit: "relay.service", state: "active", generationWitness: "process-executable-observed" }] };
   const readUnit = () => lookWorld(trace,"cold-red-gate").things
     .find(item => item.attributes.name === "relay.service");
   recordHostObservation({path:trace,status:active,t:1000});
-  assert.equal(readUnit().observed["running-generation-witness"].value,"process-command-observed");
+  assert.equal(readUnit().observed["running-generation-witness"].value,"process-executable-observed");
   assert.equal(readUnit().observed.state.value,"active");
 
   recordHostObservation({path:trace,status:{...active,
-    units:[{unit:"relay.service",state:"active",generationWitness:"process-environment-observed"}]},t:2000});
-  assert.equal(readUnit().observed["running-generation-witness"].value,"process-environment-observed",
+    units:[{unit:"relay.service",state:"active",generationWitness:"process-environment-references-generation"}]},t:2000});
+  assert.equal(readUnit().observed["running-generation-witness"].value,"process-environment-references-generation",
     "an environment reference does not establish the running command's release");
 
   recordHostObservation({path:trace,status:{...active,
