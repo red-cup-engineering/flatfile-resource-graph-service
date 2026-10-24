@@ -144,7 +144,7 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
       || holds.length > 256
       || holds.some(value => !value || typeof value !== "object" ||
           typeof value.unit !== "string" ||
-          !/^[A-Za-z0-9_.@-]+\.(?:service|timer|socket|target|path|mount)$/u.test(value.unit) ||
+          !/^[A-Za-z0-9_-][A-Za-z0-9_.@-]*\.(?:service|timer|socket|target|path|mount)$/u.test(value.unit) ||
           value.markerPresent !== true)
       || new Set(holds.map(value => value.unit)).size !== holds.length)
     throw new TypeError("record-host-observation: invalid or unqualified native hold inventory");
