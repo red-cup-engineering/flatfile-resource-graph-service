@@ -105,7 +105,8 @@ test("migrate-legacy-world carries base64-CBOR rows into the current encoding un
 test("native held-unit markers become their original World Things without asserting service or Work state", () => withTrace(trace => {
   const observed = { ...status(GEN_A, "inactive"),
     holds: [{ unit: "relay.service", markerPresent: true },
-      { unit: "held-only.service", markerPresent: true }],
+      { unit: "held-only.service", markerPresent: true },
+      { unit: "worker@shift.service", markerPresent: true }],
     holdInventoryComplete: true };
   const result = recordHostObservation({ path: trace, status: observed, t: 1000 });
   assert.equal(result.units, 1, "a marker is not an observed systemd unit");
@@ -119,6 +120,9 @@ test("native held-unit markers become their original World Things without assert
   assert.equal(hidden.observed["admission-hold-marker"].value, "present");
   assert.equal(hidden.observed["runs-generation"], undefined,
     "a held-only service has no observed running generation");
+  const namedInstance = world.things.find(item => item.attributes.name === "worker@shift.service");
+  assert.equal(namedInstance.observed["admission-hold-marker"].value, "present",
+    "a valid templated native systemd unit remains admissible");
 }));
 
 test("incomplete and legacy inventory never silently clear or preserve a stale held observation", () => withTrace(trace => {
@@ -165,6 +169,8 @@ test("invalid or unqualified hold observations refuse before appending world fac
     { holdInventoryComplete: true, holds: [{ unit: ["alpha.service"], markerPresent: true }] },
     { holdInventoryComplete: "true", holds: [] },
     { holdInventoryComplete: false, holds: "alpha.service" },
+    { holdInventoryComplete: true, holds: [{ unit: "@forged.service", markerPresent: true }] },
+    { holdInventoryComplete: true, holds: [{ unit: ".hidden.service", markerPresent: true }] },
     { holdInventoryComplete: true, holds: [{ unit: "../wrong.service", markerPresent: true }] },
     { holdInventoryComplete: true, holds: [{ unit: "alpha.service", markerPresent: false }] },
     { holdInventoryComplete: true, holds: [
