@@ -245,3 +245,33 @@ test("whole-world readout preserves exact independent observation states after h
   assert.equal(held.observed["admission-hold-marker"].value, "absent");
   assert.equal(held.observed.state.value, "not-observed");
 }));
+
+test("original live-process release evidence persists independently of unit-file generation", () => withTrace(trace => {
+  const active = { ...status(GEN_A, "active"),
+    units: [{ unit: "relay.service", state: "active", generationWitness: "process-command-observed" }] };
+  const readUnit = () => lookWorld(trace,"cold-red-gate").things
+    .find(item => item.attributes.name === "relay.service");
+  recordHostObservation({path:trace,status:active,t:1000});
+  assert.equal(readUnit().observed["running-generation-witness"].value,"process-command-observed");
+  assert.equal(readUnit().observed.state.value,"active");
+
+  recordHostObservation({path:trace,status:{...active,
+    units:[{unit:"relay.service",state:"active",generationWitness:"process-environment-observed"}]},t:2000});
+  assert.equal(readUnit().observed["running-generation-witness"].value,"process-environment-observed",
+    "an environment reference does not establish the running command's release");
+
+  recordHostObservation({path:trace,status:{...active,
+    units:[{unit:"relay.service",state:"active"}]},t:3000});
+  assert.equal(readUnit().observed["running-generation-witness"].value,"unverified",
+    "an older source that omits a process reading cannot preserve a stale positive");
+
+  recordHostObservation({path:trace,status:{...active,units:[]},t:4000});
+  assert.equal(readUnit().observed.state.value,"not-observed");
+  assert.equal(readUnit().observed["running-generation-witness"].value,"unverified");
+
+  const before=readEavtEntries({path:trace}).length;
+  assert.throws(()=>recordHostObservation({path:trace,status:{...active,live:null},t:5000}),
+    /running-generation witness/u);
+  assert.equal(readEavtEntries({path:trace}).length,before,
+    "an impossible affirmative process witness refuses before writing to original World");
+}));
