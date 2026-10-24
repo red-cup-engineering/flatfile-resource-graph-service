@@ -53,7 +53,8 @@ export const OBSERVATION_SCHEMA = "lagoon-observation/1";
 export const OBSERVED_ATTRIBUTES = Object.freeze([
   "observed-by", "profile", "link", "live-generation",
   "store-free-percent", "store-size-bytes", "store-avail-bytes",
-  "state", "runs-generation", "hold-inventory-complete", "admission-hold-marker",
+  "state", "runs-generation", "running-generation-witness",
+  "hold-inventory-complete", "admission-hold-marker",
 ]);
 
 const STORE = /^\/gnu\/store\/[0-9a-z]{32}-[A-Za-z0-9+._-]+$/u;
@@ -134,6 +135,23 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
   }
   const units = status.units ?? [], history = status.history ?? [];
   if (!Array.isArray(units) || !Array.isArray(history)) throw new TypeError("record-host-observation: status.units and status.history must be arrays");
+  // The LAGOON producer names desired systemd unit contents separately from
+  // evidence of the live process's source generation. A damaged or foreign
+  // witness refuses before any durable EAVT World append.
+  const admittedWitnesses = new Set(["process-command-observed",
+    "process-environment-observed", "unverified"]);
+  const witnessedUnits = new Set();
+  for (const row of units) {
+    if (!row || typeof row !== "object" ||
+        typeof row.unit !== "string" || !row.unit.trim() ||
+        witnessedUnits.has(row.unit)) throw new TypeError("invalid or repeated observed unit");
+    witnessedUnits.add(row.unit);
+    if (row.generationWitness !== undefined &&
+        (!admittedWitnesses.has(row.generationWitness) ||
+         (row.generationWitness !== "unverified" &&
+          (row.state !== "active" || !STORE.test(status.live?.generation ?? "")))))
+      throw new TypeError("running-generation witness lacks original active unit or selected immutable release");
+  }
   // Absence of a legacy field is not a complete inventory. Validate before
   // writing any source facts, so malformed observed holds have zero effects.
   const hasHoldReading = Object.hasOwn(status, "holdInventoryComplete");
@@ -231,16 +249,22 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
 
   // Units: every observed unit gets a state; units known on this host but absent now are said so.
   const seen = new Set();
-  for (const { unit, state } of units) {
+  for (const { unit, state, generationWitness } of units) {
     seen.add(unit);
     const address = ensure("unit", { name: unit, host: status.host });
     place(address);
     append({ e: address, a: "state", v: state ?? "unknown", t });
     if (generation) append({ e: address, a: "runs-generation", v: generation, t });
+    if (generationWitness !== undefined)
+      append({ e: address, a: "running-generation-witness", v: generationWitness, t });
+    else if (last(address, "running-generation-witness"))
+      append({ e: address, a: "running-generation-witness", v: "unverified", t });
   }
   for (const row of genesis) {
     if (!row.e.startsWith("unit:") || row.v?.host !== status.host || seen.has(row.v.name)) continue;
     if (last(row.e, "state")?.v !== "not-observed") append({ e: row.e, a: "state", v: "not-observed", t });
+    if (last(row.e, "running-generation-witness")?.v !== undefined)
+      append({ e: row.e, a: "running-generation-witness", v: "unverified", t });
   }
   // Held-only units are real source-observed Things even when the generation is
   // unavailable. Do not invent a running status or an affirmative native guard.
