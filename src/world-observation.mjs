@@ -138,8 +138,9 @@ export function recordHostObservation({ path, status, t, observer = "status" }) 
   // The LAGOON producer names desired systemd unit contents separately from
   // evidence of the live process's source generation. A damaged or foreign
   // witness refuses before any durable EAVT World append.
-  const admittedWitnesses = new Set(["process-command-observed",
-    "process-environment-observed", "unverified"]);
+  const admittedWitnesses = new Set(["process-executable-observed",
+    "process-command-references-generation",
+    "process-environment-references-generation", "unverified"]);
   const witnessedUnits = new Set();
   for (const row of units) {
     if (!row || typeof row !== "object" ||
