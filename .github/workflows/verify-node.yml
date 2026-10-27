@@ -21,12 +21,13 @@ jobs:
         run: |
           node --check scripts/flatfile-resource-graph.mjs
           node --check src/adapters/git-source-pins.mjs
+          node --check src/adapters/git-ref-sources.mjs
           node --check src/adapters/pinned-sources.mjs
           node --check src/provider/exact-source-revision.mjs
           node --check src/provider/json-resource-lifecycle.mjs
           node --check test/json-resource-lifecycle.test.mjs
       - name: Test exact source identity and Git-tree selection
-        run: node --test test/exact-source-revision.test.mjs test/git-source-pins.test.mjs
+        run: node --test test/exact-source-revision.test.mjs test/git-source-pins.test.mjs test/git-ref-sources.test.mjs
   native-cell-receiving:
     needs: source-identity
     runs-on: ubuntu-24.04
