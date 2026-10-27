@@ -55,7 +55,9 @@ proved unused. No absence of a text match proves absence of dynamic consumers.
   path, absent JSON, over-budget lots and modified tracked files. Untracked
   resources and untraversed submodules are not evidence of nonexistence.
   Prefix-scoped observations never claim full-repository or live-execution
-  coverage. This receiver creates no Work, deployment, price or economic receipt.
+  coverage. The selector disables Git `refs/replace` substitution and implicit
+  lazy network acquisition: neither may alter the claimed immutable commit.
+  This receiver creates no Work, deployment, price or economic receipt.
 
 ## Standards and effects
 
