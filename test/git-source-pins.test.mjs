@@ -80,3 +80,18 @@ test("committed JSON-LD is a source resource even when no .json file exists", t 
   const pinned = gitTrackedLifecyclePins({ root, prefixes: ["data"] });
   assert.deepEqual(pinned, [{ path: "data/resource.jsonld", digest: exactSourceRevision(text) }]);
 });
+
+test("committed JSONL, TSX, and Python remain selectable source evidence in the original Git lot", t => {
+  const root = fixture(t);
+  writeFileSync(join(root, "data", "observations.jsonl"), '{"path":"data/record.json"}' + String.fromCharCode(10));
+  writeFileSync(join(root, "src", "consumer.tsx"), 'export const path = "data/record.json";' + String.fromCharCode(10));
+  writeFileSync(join(root, "src", "consumer.py"), 'path = "data/record.json"' + String.fromCharCode(10));
+  git(root, "add", ".");
+  git(root, "commit", "-qm", "Original cross-language source references");
+  const paths = gitTrackedLifecyclePins({ root }).map(item => item.path);
+  assert.deepEqual(paths, [
+    "data/observations.jsonl", "data/record.json", "src/consumer.py", "src/consumer.tsx", "src/reader.mjs",
+  ]);
+  assert.equal(gitTrackedLifecyclePins({ root, prefixes: ["data"] }).length, 2);
+  assert.throws(() => gitTrackedLifecyclePins({ root, prefixes: ["src"] }), /no tracked JSON/);
+});
