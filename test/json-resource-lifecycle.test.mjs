@@ -242,3 +242,33 @@ test("exact JSON-LD source and expanded PROV use flow through the native lifecyc
     "a compact IRI cannot be inferred from an unprocessed JSON-LD context");
   assert.ok(notExpanded.resources.some(row => row.sourcePath === compact.path));
 });
+
+test("Git and physical FARS snapshots include JSONL, TSX and Python source references without claiming execution", async t => {
+  const { root, pins } = await fixture(t);
+  const additional = [
+    source("state/observations.jsonl", '{"source":"data/sample.json","kind":"event"}' + String.fromCharCode(10)),
+    source("src/consumer.tsx", 'export const path = "data/sample.json";'),
+    source("scripts/consumer.py", 'record_path = "data/sample.json"'),
+  ];
+  for (const item of additional) {
+    const location = join(root, item.path);
+    await mkdir(dirname(location), { recursive: true });
+    await writeFile(location, item.text);
+  }
+  const report = await observeJsonResourceLifecycle({
+    root, namespace, observedAt: at,
+    sources: [...pins, ...additional.map(item => ({ path: item.path, digest: item.revision }))],
+  });
+  const resource = report.resources.find(item => item.sourcePath === "data/sample.json");
+  for (const item of additional) {
+    const mention = resource.references.find(reference => reference.sourcePath === item.path);
+    assert.ok(mention, "each source language must be retained as a candidate reader or writer");
+    assert.equal(mention.kind, "text-reference");
+    assert.equal(mention.contentDigest, item.revision);
+  }
+  assert.equal(resource.classification, "referenced");
+  assert.ok(resource.actions.some(action => action.action === "qualify-runtime-connection"));
+  assert.equal(report.resources.some(item => item.sourcePath.endsWith(".jsonl")), false,
+    "JSONL is source evidence, not an invented single JSON value");
+  assert.ok(report.cells.every(isCell));
+});
