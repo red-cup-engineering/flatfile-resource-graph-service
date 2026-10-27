@@ -44,6 +44,25 @@ adapter. No direct caller can mint source-version witnesses using an asserted
 but unverified SHA-256 string. These are source-inventory and knowledge-receiving
 capabilities, not authorization to delete files or receive Work.
 
+### Source from unfinished Git refs
+
+The existing FARS lifecycle also receives immutable bytes from a named branch,
+archive tag or `refs/archive/...` without changing the current checkout:
+
+```sh
+flatfile-resource-graph source-json-lifecycle-git-ref \
+  /absolute/owner/repository https://github.com/owner/repository \
+  2026-10-27T00:00:00.000Z refs/archive/unfinished-agent data src
+```
+
+This path verifies the original commit, tree, blob content, and SHA-256
+revisions before feeding the *same* SignCell/FARS provider as current Git or
+pinned-file observations. A ref remains evidence of source, not an assertion
+of successful integration or archive status. JSONL and source-language text
+is reference evidence, not proof of an executing reader or valid JSON.
+Historical scans leave all refs and the current checkout unchanged; Git
+Services owns receiving and actual branch/tag retirement.
+
 ## Receive JSON resources and their lifecycle
 
 `source-json-lifecycle` reads an explicitly selected repository snapshot and
