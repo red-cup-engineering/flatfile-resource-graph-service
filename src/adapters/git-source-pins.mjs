@@ -13,9 +13,13 @@ import { exactSourceRevision, MAX_BATCH_BYTES, MAX_SOURCE_BYTES, REPOSITORY_TEXT
 const SAFE_NAME = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\0]+$/u;
 const MAX_GIT_TREE_BYTES = 64 * MAX_SOURCE_BYTES;
 function git(root, ...args) {
-  return execFileSync("git", ["-C", root, ...args], {
+  return execFileSync("git", ["--no-replace-objects", "-C", root, ...args], {
     encoding: "buffer", maxBuffer: MAX_GIT_TREE_BYTES, timeout: 30_000,
     stdio: ["ignore", "pipe", "pipe"],
+    // The purported committed tree must never be silently replaced by a
+    // repository-local refs/replace object or lazily fetched from a remote.
+    env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1",
+      GIT_NO_LAZY_FETCH: "1", GIT_TERMINAL_PROMPT: "0" },
   });
 }
 
