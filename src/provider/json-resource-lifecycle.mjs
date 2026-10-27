@@ -39,7 +39,7 @@ export function analyzeJsonResourceLifecycle({ namespace, files }) {
   const owner = sourceNamespace(namespace), sources = retainedCarrier(files);
   admitExactTextSourceRevisions(sources);
   const ordered = [...sources].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
-  const documents = ordered.filter(source => source.path.endsWith(".json")).map(source => {
+  const documents = ordered.filter(source => (?:source.path.endsWith(".json") || source.path.endsWith(".jsonld"))).map(source => {
     let value;
     try { value = parseJsonValue(source.text); }
     catch { throw new TypeError(`selected JSON source does not parse: ${source.path}`); }
