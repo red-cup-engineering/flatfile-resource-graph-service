@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -38,9 +38,40 @@ test('archive ref receives the original absent JSON, JSONL and TSX without looki
   assert.equal(original.files.find(f => f.path === 'data/old.json').revision,
     exactSourceRevision(Buffer.from('{"condition":"original"}\n')));
   assert.equal(original.exhaustiveRepository, false);
+  assert.equal(original.sourceObjectFormat, 'sha1');
+  assert.deepEqual(original.sourceFiles.map(file => file.sourcePath), original.files.map(file => file.path));
+  assert.deepEqual(original.sourceFiles.find(file => file.sourcePath === 'data/old.json'), {
+    sourcePath: 'data/old.json',
+    sourceGitBlobSha: git(root, 'rev-parse', 'refs/archive/unfinished-agent:data/old.json'),
+    sourceGitFileMode: '100644',
+    contentDigest: exactSourceRevision(Buffer.from('{\"condition\":\"original\"}\n')),
+  });
+  // FARS's pure source coordinates remain exactly {path, revision, text};
+  // Git's independent object identity is attached to the selected-source receipt.
+  assert.deepEqual(Object.keys(original.files[0]).sort(), ['path', 'revision', 'text']);
   assert.deepEqual(readGitRefSourceSnapshot({ root, ref: 'refs/heads/main', prefixes: ['data'] })
     .files.map(f => f.path), ['data/events.jsonl','data/new.json']);
   assert.equal(git(root, 'rev-parse', 'refs/archive/unfinished-agent'), old);
+});
+
+test('native Git-ref FARS CLI carries every verified Git blob through to the original Cell lifecycle', t => {
+  const { root, old } = fixture(t);
+  const namespace = 'https://github.com/red-cup-engineering/flatfile-resource-graph-service';
+  const command = join(import.meta.dirname, '../scripts/flatfile-resource-graph-cli.mjs');
+  const run = spawnSync(process.execPath, [command, 'source-json-lifecycle-git-ref', root,
+    namespace, '2026-10-27T15:00:00Z', 'refs/archive/unfinished-agent'],
+    { encoding: 'utf8', timeout: 60000, maxBuffer: 8 * 1024 * 1024 });
+  assert.equal(run.status, 0, run.stderr);
+  const body = JSON.parse(run.stdout);
+  assert.equal(body.gitSource.sourceCommit, old);
+  assert.equal(body.gitSource.sourceObjectFormat, 'sha1');
+  const retained = body.gitSource.sourceFiles.find(file => file.sourcePath === 'data/old.json');
+  assert.equal(retained.sourceGitBlobSha, git(root, 'rev-parse', old + ':data/old.json'));
+  assert.equal(retained.sourceGitFileMode, '100644');
+  assert.equal(retained.contentDigest, body.scope.sources.find(row =>
+    row.sourcePath === 'data/old.json').contentDigest);
+  assert.equal(body.resources.some(resource => resource.sourcePath === 'data/old.json'), true);
+  assert.equal(body.gitSource.exhaustiveRepository, false);
 });
 
 test('a forged refs/replace entry cannot substitute archived JSON under the same commit ID', t => {
