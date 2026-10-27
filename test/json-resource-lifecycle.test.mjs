@@ -56,6 +56,7 @@ test("references and expanded PROV declarations have different, witnessed meanin
   const row = connected.resources.find(row => row.sourcePath === file.path);
   assert.equal(row.classification, "declared-connected");
   assert.deepEqual(row.declaredConnections.map(x => x.role).sort(), ["reader", "writer"]);
+  assert.ok(row.actions.some(action => action.action === "qualify-runtime-connection"));
   const use = connected.cells.find(row => row.predicate === PROV + "used");
   assert.equal(use.for[0].interpretation, "declared-intent");
   assert.equal(use.for[0].contentDigest, declaration.revision);

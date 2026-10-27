@@ -169,8 +169,10 @@ export function analyzeJsonResourceLifecycle({ namespace, files }) {
     const actions = [];
     if (classification === "unclaimed-in-snapshot") actions.push({ action: "bind-runtime-consumer",
       reason: "No reference or declared consumer/producer was observed in the selected snapshot." });
-    else if (classification === "referenced") actions.push({ action: "qualify-runtime-connection",
-      reason: "A path mention does not establish an executing reader or writer." });
+    else actions.push({ action: "qualify-runtime-connection",
+      reason: classification === "referenced"
+        ? "A path mention does not establish an executing reader or writer."
+        : "A declared reader or writer still requires evidence of actual runtime execution." });
     if (!["admitted", "schema-document"].includes(schema.status)) actions.push({ action: "bind-or-repair-schema", status: schema.status });
     for (const property of properties.filter(property => property.opaqueWithoutDefinition))
       actions.push({ action: "define-property-meaning", pointer: property.pointer, key: property.key });

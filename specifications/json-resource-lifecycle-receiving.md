@@ -35,6 +35,9 @@ meaning everywhere, or that a dynamic consumer cannot exist.
 - Independent review confirmed schema refusal, declared-intent provenance,
   preservation of both evidence lanes and preservation of authored unknowns.
   Array tuple and subsequent-item property meanings retain exact schema pointers.
+- A second independent reviewer required declaration-only resources to retain
+  their runtime qualification action. This is now exercised by the existing
+  PROV declaration test; declared intent cannot silently empty the pending work.
 
 The package pins native SignCell 0.13.2. The repository lock records the exact
 transitive suppliers used for receiving. This measurement establishes local

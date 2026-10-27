@@ -33,7 +33,9 @@ proved unused. No absence of a text match proves absence of dynamic consumers.
 - **JR-6:** Classify each JSON resource as `declared-connected`, `referenced`, or
   `unclaimed-in-snapshot`; carry the complete selected path/revision scope.
   Generate a deterministic receiving action for each unresolved schema,
-  undocumented property or missing runtime connection. The reader itself is a
+  undocumented property or missing runtime connection. Declared connections
+  retain a runtime qualification action until execution has been received.
+  The reader itself is a
   real source consumer. It never deletes an artifact or marks domain work done.
 - **JR-7:** Expose the result through the original FARS CLI/provider/compositor.
   The same cells must pass native SignCraft `KnowledgeBase.fromCells` and support
