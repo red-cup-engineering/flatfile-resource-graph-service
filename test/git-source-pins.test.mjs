@@ -66,3 +66,17 @@ test("a local Git replace ref cannot impersonate the immutable JSON source tree"
     exactSourceRevision(JSON.stringify({reading:2.75}) + String.fromCharCode(10)));
 });
 
+
+test("committed JSON-LD is a source resource even when no .json file exists", t => {
+  const root = fixture(t);
+  git(root, "rm", "-q", "data/record.json");
+  const text = JSON.stringify({
+    "@context": { "prov": "http://www.w3.org/ns/prov#" },
+    "@graph": [{ "@id": "urn:561:reader", "http://www.w3.org/ns/prov#used": { "@id": "urn:561:source" } }]
+  }) + String.fromCharCode(10);
+  writeFileSync(join(root, "data", "resource.jsonld"), text);
+  git(root, "add", ".");
+  git(root, "commit", "-qm", "Original JSON-LD source carrier");
+  const pinned = gitTrackedLifecyclePins({ root, prefixes: ["data"] });
+  assert.deepEqual(pinned, [{ path: "data/resource.jsonld", digest: exactSourceRevision(text) }]);
+});
