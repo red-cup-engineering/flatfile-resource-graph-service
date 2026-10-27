@@ -38,7 +38,7 @@ test('archive ref receives the original absent JSON, JSONL and TSX without looki
   assert.equal(original.files.find(f => f.path === 'data/old.json').revision,
     exactSourceRevision(Buffer.from('{"condition":"original"}\n')));
   assert.equal(original.exhaustiveRepository, false);
-  assert.equal(original.sourceObjectFormat, 'sha1');
+  assert.equal(original.sourceObjectFormat, git(root, 'rev-parse', '--show-object-format'));
   assert.deepEqual(original.sourceFiles.map(file => file.sourcePath), original.files.map(file => file.path));
   assert.deepEqual(original.sourceFiles.find(file => file.sourcePath === 'data/old.json'), {
     sourcePath: 'data/old.json',
@@ -64,7 +64,7 @@ test('native Git-ref FARS CLI carries every verified Git blob through to the ori
   assert.equal(run.status, 0, run.stderr);
   const body = JSON.parse(run.stdout);
   assert.equal(body.gitSource.sourceCommit, old);
-  assert.equal(body.gitSource.sourceObjectFormat, 'sha1');
+  assert.equal(body.gitSource.sourceObjectFormat, git(root, 'rev-parse', '--show-object-format'));
   const retained = body.gitSource.sourceFiles.find(file => file.sourcePath === 'data/old.json');
   assert.equal(retained.sourceGitBlobSha, git(root, 'rev-parse', old + ':data/old.json'));
   assert.equal(retained.sourceGitFileMode, '100644');
