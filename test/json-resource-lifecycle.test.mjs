@@ -272,3 +272,41 @@ test("Git and physical FARS snapshots include JSONL, TSX and Python source refer
     "JSONL is source evidence, not an invented single JSON value");
   assert.ok(report.cells.every(isCell));
 });
+
+test("historical archive ref enters the original FARS SignCell graph through the native CLI", async t => {
+  const { root } = await fixture(t);
+  const git = (...args) => {
+    const outcome = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    assert.equal(outcome.status, 0, outcome.stderr);
+    return outcome.stdout.trim();
+  };
+  git("init", "-q", "-b", "main");
+  git("config", "user.email", "fars-source@example.invalid");
+  git("config", "user.name", "FARS source witness");
+  git("add", "."); git("commit", "-qm", "Original JSON and code resource");
+  const original = git("rev-parse", "HEAD");
+  const archived = "refs/archive/unfinished-json-consumer";
+  git("update-ref", archived, original);
+  git("rm", "-q", "data/sample.json");
+  await writeFile(join(root, "data/current.json"), JSON.stringify({ currentOnly: true }));
+  git("add", "."); git("commit", "-qm", "Changed current source");
+  assert.notEqual(git("rev-parse", "HEAD"), original);
+  const command = ["scripts/flatfile-resource-graph-cli.mjs", "source-json-lifecycle-git-ref",
+    root, namespace, at, archived];
+  const received = spawnSync(process.execPath, command, {
+    encoding: "utf8", timeout: 30_000, maxBuffer: 8_388_608,
+  });
+  assert.equal(received.status, 0, received.stderr);
+  const result = JSON.parse(received.stdout);
+  assert.equal(result.kind, "fars.json-resource-lifecycle/v1");
+  assert.equal(result.gitSource.sourceCommit, original);
+  assert.equal(result.gitSource.sourceRef, archived);
+  assert.equal(result.gitSource.exhaustiveRepository, false);
+  assert.equal(result.resources.some(item => item.sourcePath === "data/current.json"), false);
+  const old = result.resources.find(item => item.sourcePath === "data/sample.json");
+  assert.equal(old.schema.status, "admitted");
+  assert.equal(old.classification, "referenced");
+  assert.ok(result.cells.some(item => item.subject === old.resource));
+  assert.ok(result.providers.some(item => item.status === "observed"));
+  assert.equal(git("rev-parse", archived), original, "observation must not retarget retired or unfinished refs");
+});
