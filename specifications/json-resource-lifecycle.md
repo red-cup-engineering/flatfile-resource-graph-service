@@ -61,6 +61,13 @@ proved unused. No absence of a text match proves absence of dynamic consumers.
 
 ## Standards and effects
 
+W3C JSON-LD `.jsonld` source files are admitted as bounded JSON carriers using the
+same original parser, source witness and Cell compositor as `.json`. Only a
+source-authored, explicitly expanded PROV-O predicate qualifies a declared
+lifecycle edge; the reader does not expand `@context` or interpret compact
+`prov:used` as equivalent to its expanded IRI. This is source admission,
+not a claim of JSON-LD 1.1 processor or RDF dataset conformance.
+
 JSON Schema 2020-12 is the schema carrier; RFC 6901 identifies a schema property;
 RFC 6920 and upstream canonical CBOR identify native Cells; PROV-O describes
 declared use and generation; Dublin Core `conformsTo` is emitted only after
