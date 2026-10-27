@@ -91,6 +91,8 @@ async function main({ argv, stdin, stdout, stderr }) {
       return printAndExit(Object.freeze({ ...report,
         gitSource: Object.freeze({ kind: original.kind, sourceRef: original.sourceRef,
           sourceCommit: original.sourceCommit, sourceTree: original.sourceTree,
+          sourceObjectFormat: original.sourceObjectFormat,
+          sourceFiles: original.sourceFiles,
           prefixes: original.prefixes, exhaustiveRepository: false }),
       }));
     }
