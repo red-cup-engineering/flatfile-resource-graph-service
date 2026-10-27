@@ -4,11 +4,10 @@ import { analyzeJsonResourceLifecycle } from "../provider/json-resource-lifecycl
 import { defineProvider } from "../provider/provider.mjs";
 import { composeProviders } from "../provider/compositor.mjs";
 
-/** Read a bounded source snapshot into the original FARS provider/compositor. */
-export async function observeJsonResourceLifecycle({ root, namespace, sources, observedAt }) {
+/** Purely admitted source text enters one SignCell/FARS graph regardless of acquisition substrate. */
+export async function receiveJsonResourceLifecycleFiles({ namespace, files, observedAt }) {
   if (typeof observedAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/u.test(observedAt) || !Number.isFinite(Date.parse(observedAt)))
     throw new TypeError("JSON lifecycle requires an explicit observation instant");
-  const files = await readPinnedTextSources({ root, sources, extensions: REPOSITORY_TEXT_EXTENSIONS });
   const report = analyzeJsonResourceLifecycle({ namespace, files });
   const resources = report.resources.map(source => Object.freeze({
     resource: source.resource, focus: source.focus, observedAt,
@@ -23,4 +22,10 @@ export async function observeJsonResourceLifecycle({ root, namespace, sources, o
   const composition = await composeProviders([provider], { context: { observedAt } });
   return Object.freeze({ ...report, cells: composition.cells,
     providers: composition.providers, diagnostics: composition.diagnostics });
+}
+
+/** Physical-file admission delegates to the same pure, source-witnessed composer. */
+export async function observeJsonResourceLifecycle({ root, namespace, sources, observedAt }) {
+  const files = await readPinnedTextSources({ root, sources, extensions: REPOSITORY_TEXT_EXTENSIONS });
+  return receiveJsonResourceLifecycleFiles({ namespace, files, observedAt });
 }
