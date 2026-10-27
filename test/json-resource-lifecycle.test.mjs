@@ -27,6 +27,15 @@ const schema = { $schema: "https://json-schema.org/draft/2020-12/schema", $id: "
 const document = { $schema: schema.$id, id: "sample", val: 2.75 };
 const PROV = "http://www.w3.org/ns/prov#";
 
+test("pure lifecycle refuses a falsely asserted source revision before minting any witnessed cells", () => {
+  const original = source("data/observation.json", { value: 1 });
+  assert.throws(() => analyzeJsonResourceLifecycle({ namespace,
+    files: [{ ...original, text: JSON.stringify({ value: 2 }) }] }), /digest differs/);
+  assert.throws(() => analyzeJsonResourceLifecycle({ namespace,
+    files: [{ ...original, revision: "sha256:" + "0".repeat(64) }] }), /digest differs/);
+});
+
+
 test("exact schema receiving names short properties without rewriting standard keys or decimal JSON", () => {
   const report = analyzeJsonResourceLifecycle({ namespace, files: [source("schemas/observation.json", schema), source("data/sample.json", document)] });
   const observed = report.resources.find(row => row.sourcePath === "data/sample.json");
