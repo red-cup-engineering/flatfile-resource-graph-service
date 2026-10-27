@@ -159,6 +159,29 @@ test("original provider and physical CLI consume the same pinned JSON/code snaps
   assert.ok(output.cells.every(isCell));
 });
 
+test("native FARS Git-tree lifecycle automatically pins and receives one committed repository lot", async t => {
+  const { root } = await fixture(t);
+  for (const args of [
+    ["init", "-q"], ["config", "user.email", "source-test@example.invalid"],
+    ["config", "user.name", "source-test"], ["add", "."], ["commit", "-qm", "Pinned source cut"],
+  ]) {
+    const result = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+  }
+  const argv = ["scripts/flatfile-resource-graph-cli.mjs", "source-json-lifecycle-git", root, namespace, at];
+  const received = spawnSync(process.execPath, argv, { encoding: "utf8", timeout: 30_000, maxBuffer: 4_194_304 });
+  assert.equal(received.status, 0, received.stderr);
+  const report = JSON.parse(received.stdout);
+  assert.equal(report.kind, "fars.json-resource-lifecycle/v1");
+  assert.equal(report.resources.length, 2);
+  assert.ok(report.cells.every(isCell));
+  await writeFile(join(root, "src/reader.mjs"), "// edited after the source commit\n");
+  const refused = spawnSync(process.execPath, argv, { encoding: "utf8", timeout: 30_000 });
+  assert.equal(refused.status, 2);
+  assert.equal(refused.stdout, "");
+  assert.match(refused.stderr, /differs from immutable HEAD/);
+});
+
 test("stale, foreign, symlinked, malformed and over-budget snapshots return no partial graph", async t => {
   const { root, pins } = await fixture(t);
   await assert.rejects(() => observeJsonResourceLifecycle({ root, namespace, observedAt: at,
