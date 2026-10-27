@@ -6,7 +6,8 @@ import { loadFlatfiles } from "../src/substrate/read-flatfiles.mjs";
 import { readLog } from "@red-cup-engineering/semiotic-eavt-services-section/store";
 import { jsonSourcesProvider } from "../src/adapters/json-sources.mjs";
 import { composeProviders, serializeComposition } from "../src/provider/compositor.mjs";
-import { observeJsonResourceLifecycle } from "../src/adapters/json-resource-lifecycle.mjs";
+import { observeJsonResourceLifecycle, receiveJsonResourceLifecycleFiles } from "../src/adapters/json-resource-lifecycle.mjs";
+import { readGitRefSourceSnapshot } from "../src/adapters/git-ref-sources.mjs";
 import { gitTrackedLifecyclePins } from "../src/adapters/git-source-pins.mjs";
 
 const USAGE = `flatfile-resource-graph <verb> [args]
@@ -14,6 +15,7 @@ const USAGE = `flatfile-resource-graph <verb> [args]
   source-json <root> <owner-namespace-URI> <observed-at>  # JSON [{path,digest}, ...] via stdin
   source-json-lifecycle <root> <owner-namespace-URI> <observed-at>  # pinned JSON/code snapshot via stdin
   source-json-lifecycle-git <root> <owner-namespace-URI> <observed-at> [path-prefix...]  # exact committed JSON/code tree
+  source-json-lifecycle-git-ref <root> <owner-namespace-URI> <observed-at> <git-ref> [path-prefix...]  # original archive/branch Git objects into same FARS Cell graph
   validate <root>
   lint <root>
   show <root> <slug-or-path>
@@ -79,6 +81,18 @@ async function main({ argv, stdin, stdout, stderr }) {
       const [root, namespace, observedAt] = rest;
       const sources = await readJsonSelectionsFromStdin(stdin);
       return printAndExit(await observeJsonResourceLifecycle({ root, namespace, sources, observedAt }));
+    }
+    case "source-json-lifecycle-git-ref": {
+      if (rest.length < 4)
+        return usageError("source-json-lifecycle-git-ref: expected <root> <owner-namespace-URI> <observed-at> <git-ref> [path-prefix...]");
+      const [root, namespace, observedAt, ref, ...prefixes] = rest;
+      const original = readGitRefSourceSnapshot({ root, ref, prefixes });
+      const report = await receiveJsonResourceLifecycleFiles({ namespace, observedAt, files: original.files });
+      return printAndExit(Object.freeze({ ...report,
+        gitSource: Object.freeze({ kind: original.kind, sourceRef: original.sourceRef,
+          sourceCommit: original.sourceCommit, sourceTree: original.sourceTree,
+          prefixes: original.prefixes, exhaustiveRepository: false }),
+      }));
     }
     case "source-json-lifecycle-git": {
       if (rest.length < 3)
