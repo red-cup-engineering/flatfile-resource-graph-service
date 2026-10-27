@@ -1,0 +1,55 @@
+name: FARS source and native Cell conformance
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-identity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '24'
+      - name: Check native CLI and source admission syntax without registry dependencies
+        run: |
+          node --check scripts/flatfile-resource-graph.mjs
+          node --check src/adapters/git-source-pins.mjs
+          node --check src/adapters/pinned-sources.mjs
+          node --check src/provider/exact-source-revision.mjs
+          node --check src/provider/json-resource-lifecycle.mjs
+          node --check test/json-resource-lifecycle.test.mjs
+      - name: Test exact source identity and Git-tree selection
+        run: node --test test/exact-source-revision.test.mjs test/git-source-pins.test.mjs
+  native-cell-receiving:
+    needs: source-identity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '24'
+      - name: Install pinned package manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pnpm-tool"
+          npm install --prefix "$RUNNER_TEMP/pnpm-tool" --registry=https://registry.npmjs.org \
+            --no-save --ignore-scripts --no-audit --no-fund pnpm@11.28.5
+      - name: Receive exact published supplier closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$RUNNER_TEMP/pnpm-tool/node_modules/pnpm/bin/pnpm.cjs" install \
+            --frozen-lockfile --ignore-scripts
+      - name: Run original complete Cell and lifecycle suite
+        run: npm test
