@@ -195,3 +195,50 @@ test("stale, foreign, symlinked, malformed and over-budget snapshots return no p
   assert.throws(() => analyzeJsonResourceLifecycle({ namespace, files: [source("huge.json", Array(4097).fill(0))] }), /4096-node/);
   assert.throws(() => analyzeJsonResourceLifecycle({ namespace, files: [source("huge-object.json", { values: Array(4097).fill(0) })] }), /4096-node/);
 });
+
+test("exact JSON-LD source and expanded PROV use flow through the native lifecycle and provider", async t => {
+  const root = await mkdtemp(join(tmpdir(), "fars-jsonld-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const data = source("data/resource.jsonld", { id: "source-observation" });
+  const focus = jsonSourceFocus(namespace, data.path);
+  const expanded = source("data/relations.jsonld", {
+    "@context": { "prov": PROV },
+    "@graph": [{
+      "@id": "urn:561:reader:observed",
+      [PROV + "used"]: { "@id": focus }
+    }]
+  });
+  const lot = [data, expanded];
+  for (const item of lot) {
+    const path = join(root, item.path);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, item.text);
+  }
+  const report = await observeJsonResourceLifecycle({
+    root, namespace, sources: lot.map(row => ({ path: row.path, digest: row.revision })),
+    observedAt: at,
+  });
+  assert.equal(report.resources.length, 2);
+  const target = report.resources.find(row => row.sourcePath === data.path);
+  assert.equal(target.classification, "declared-connected");
+  assert.deepEqual(target.declaredConnections.map(row => row.role), ["reader"]);
+  const relation = report.cells.find(row => row.predicate === PROV + "used");
+  assert.ok(relation);
+  assert.equal(relation.for[0].interpretation, "declared-intent");
+  assert.equal(relation.for[0].sourcePath, expanded.path);
+  assert.equal(relation.for[0].contentDigest, expanded.revision);
+
+  const compact = source("data/compact.jsonld", {
+    "@context": { "prov": PROV },
+    "@graph": [{
+      "@id": "urn:561:reader:unqualified",
+      "prov:used": { "@id": focus }
+    }]
+  });
+  const notExpanded = analyzeJsonResourceLifecycle({ namespace, files: [data, compact] });
+  const original = notExpanded.resources.find(row => row.sourcePath === data.path);
+  assert.equal(original.classification, "unclaimed-in-snapshot");
+  assert.equal(original.declaredConnections.length, 0,
+    "a compact IRI cannot be inferred from an unprocessed JSON-LD context");
+  assert.ok(notExpanded.resources.some(row => row.sourcePath === compact.path));
+});
