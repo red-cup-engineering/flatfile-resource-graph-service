@@ -30,6 +30,7 @@ meaning everywhere, or that a dynamic consumer cannot exist.
 - Checks cover source digest refusal, acquisition bounds, scalar and array JSON,
   decimal values, exact schema validation, ambiguity and rejection, physical
   CLI use, positive and opposing evidence, and authored unknown claims.
+  Empty and whitespace JSON property names remain distinct admitted names.
 - A structurally oversized object is refused before its array occurrences can
   expand into attribute observations or enlarge the pending traversal frontier.
 - Independent review confirmed schema refusal, declared-intent provenance,

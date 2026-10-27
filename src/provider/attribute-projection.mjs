@@ -27,7 +27,8 @@ function plainRecord(value, label) {
 
 /** A frontmatter/JSON key becomes a collision-free graph predicate. */
 export function attributePredicate(key) {
-  return `${FARS_ATTRIBUTE_NAMESPACE}${encodeURIComponent(nonEmptyString(key, "attribute key").normalize("NFC"))}`;
+  if (typeof key !== "string") throw new TypeError("attribute key must be a string");
+  return `${FARS_ATTRIBUTE_NAMESPACE}${encodeURIComponent(key.normalize("NFC"))}`;
 }
 
 /**

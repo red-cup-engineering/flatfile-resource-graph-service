@@ -93,11 +93,15 @@ test("invalid, ambiguous and absent schema claims never become conformance", () 
 });
 
 test("source versions, owners, array/scalar data and property pointers remain distinct", () => {
-  const files = [source("raw.json", { data: [2.75, 2.75], "a/b~c": { val: false } }), source("array.json", [1, null]), source("scalar.json", false)];
+  const files = [source("raw.json", { data: [2.75, 2.75], "a/b~c": { val: false }, "": 1, " ": 2 }), source("array.json", [1, null]), source("scalar.json", false)];
   const first = analyzeJsonResourceLifecycle({ namespace, files });
   assert.equal(first.resources.length, 3);
   const raw = first.resources.find(row => row.sourcePath === "raw.json");
   assert.ok(raw.properties.some(row => row.pointer === "/a~1b~0c/val"));
+  assert.ok(raw.properties.some(row => row.pointer === "/" && row.key === ""));
+  assert.ok(raw.properties.some(row => row.pointer === "/ " && row.key === " "));
+  assert.ok(first.cells.some(row => row.subject === raw.resource && row.predicate === "urn:fars:attribute:"));
+  assert.ok(first.cells.some(row => row.subject === raw.resource && row.predicate === "urn:fars:attribute:%20"));
   assert.ok(raw.actions.some(row => row.action === "define-property-meaning" && row.key === "data"));
   const next = analyzeJsonResourceLifecycle({ namespace, files: [source("raw.json", { data: [2.75, 3.5] })] });
   assert.equal(next.resources[0].focus, raw.focus);
