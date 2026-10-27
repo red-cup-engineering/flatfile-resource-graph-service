@@ -59,6 +59,19 @@ proved unused. No absence of a text match proves absence of dynamic consumers.
   lazy network acquisition: neither may alter the claimed immutable commit.
   This receiver creates no Work, deployment, price or economic receipt.
 
+- **JR-9:** A selected historical branch, divergent source ref, or faux archive tag
+  is a *source selector*, not a completed Archive or license to delete it. Read
+  its original committed Git object tree without consulting or altering the
+  worktree, disabling object replacement and lazy network acquisition. Record
+  original ref, immutable commit and tree IDs separately from source paths,
+  exact Git blob IDs, SHA-256 revisions, schema declarations, Cells and runtime
+  consumer receipts. Recheck the ref after the bounded batch; refuse moving
+  refs, invalid UTF-8, non-regular files, incomplete/forged objects and budgets
+  exceeded before projecting any Cell. Feed these bytes to the existing JR-1
+  analyzer and JR-7 provider/compositor, preserving declared-versus-executed
+  unknowns. Git Services retains ref status, merge/supersession, consumer
+  receiving and any branch retirement Work; FARS never changes a ref.
+
 ## Standards and effects
 
 W3C JSON-LD `.jsonld` source files are admitted as bounded JSON carriers using the
