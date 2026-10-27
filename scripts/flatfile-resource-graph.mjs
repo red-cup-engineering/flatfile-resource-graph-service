@@ -7,11 +7,13 @@ import { readLog } from "@red-cup-engineering/semiotic-eavt-services-section/sto
 import { jsonSourcesProvider } from "../src/adapters/json-sources.mjs";
 import { composeProviders, serializeComposition } from "../src/provider/compositor.mjs";
 import { observeJsonResourceLifecycle } from "../src/adapters/json-resource-lifecycle.mjs";
+import { gitTrackedLifecyclePins } from "../src/adapters/git-source-pins.mjs";
 
 const USAGE = `flatfile-resource-graph <verb> [args]
 
   source-json <root> <owner-namespace-URI> <observed-at>  # JSON [{path,digest}, ...] via stdin
   source-json-lifecycle <root> <owner-namespace-URI> <observed-at>  # pinned JSON/code snapshot via stdin
+  source-json-lifecycle-git <root> <owner-namespace-URI> <observed-at> [path-prefix...]  # exact committed JSON/code tree
   validate <root>
   lint <root>
   show <root> <slug-or-path>
@@ -76,6 +78,13 @@ async function main({ argv, stdin, stdout, stderr }) {
         return usageError("source-json-lifecycle: expected <root> <owner-namespace-URI> <observed-at>");
       const [root, namespace, observedAt] = rest;
       const sources = await readJsonSelectionsFromStdin(stdin);
+      return printAndExit(await observeJsonResourceLifecycle({ root, namespace, sources, observedAt }));
+    }
+    case "source-json-lifecycle-git": {
+      if (rest.length < 3)
+        return usageError("source-json-lifecycle-git: expected <root> <owner-namespace-URI> <observed-at> [path-prefix...]");
+      const [root, namespace, observedAt, ...prefixes] = rest;
+      const sources = gitTrackedLifecyclePins({ root, prefixes });
       return printAndExit(await observeJsonResourceLifecycle({ root, namespace, sources, observedAt }));
     }
     case "source-json": {
