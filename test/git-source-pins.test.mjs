@@ -74,6 +74,9 @@ test("committed JSON-LD is a source resource even when no .json file exists", t 
     "@context": { "prov": "http://www.w3.org/ns/prov#" },
     "@graph": [{ "@id": "urn:561:reader", "http://www.w3.org/ns/prov#used": { "@id": "urn:561:source" } }]
   }) + String.fromCharCode(10);
+  // Git rm removes the now-empty data directory: recreate the physical
+  // source root before writing the replacement JSON-LD carrier.
+  mkdirSync(join(root, "data"), { recursive: true });
   writeFileSync(join(root, "data", "resource.jsonld"), text);
   git(root, "add", ".");
   git(root, "commit", "-qm", "Original JSON-LD source carrier");
