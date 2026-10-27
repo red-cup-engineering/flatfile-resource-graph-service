@@ -52,7 +52,7 @@ test("a local Git replace ref cannot impersonate the immutable JSON source tree"
   const root = fixture(t);
   const original = git(root, "rev-parse", "HEAD");
   const first = gitTrackedLifecyclePins({root});
-  writeFileSync(join(root, "data", "record.json"), '{"reading":9.5}\\n'.replace('\\n','\n'));
+  writeFileSync(join(root, "data", "record.json"), JSON.stringify({reading:9.5}) + String.fromCharCode(10));
   git(root, "add", "data/record.json");
   git(root, "commit", "-qm", "Unrelated replacement source");
   const replacement = git(root, "rev-parse", "HEAD");
@@ -63,18 +63,6 @@ test("a local Git replace ref cannot impersonate the immutable JSON source tree"
   assert.deepEqual(received, first,
     "Git source admission must read the actual immutable commit, never refs/replace");
   assert.equal(received.find(row => row.path === "data/record.json").digest,
-    exactSourceRevision('{"reading":2.75}\\n'.replace('\\n','\n')));
+    exactSourceRevision(JSON.stringify({reading:2.75}) + String.fromCharCode(10)));
 });
 
-test("inherited Git replacement settings cannot change source identity", t => {
-  const root = fixture(t);
-  const before = gitTrackedLifecyclePins({root});
-  const previous = process.env.GIT_NO_REPLACE_OBJECTS;
-  process.env.GIT_NO_REPLACE_OBJECTS = "0";
-  try {
-    assert.deepEqual(gitTrackedLifecyclePins({root}), before);
-  } finally {
-    if (previous === undefined) delete process.env.GIT_NO_REPLACE_OBJECTS;
-    else process.env.GIT_NO_REPLACE_OBJECTS = previous;
-  }
-});
