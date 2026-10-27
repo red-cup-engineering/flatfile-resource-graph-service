@@ -7,7 +7,11 @@ import { createHash } from 'node:crypto';
 
 export const MAX_SOURCE_BYTES = 1_048_576;
 export const MAX_BATCH_BYTES = 16 * MAX_SOURCE_BYTES;
-export const REPOSITORY_TEXT_EXTENSIONS = Object.freeze([".json",".jsonld",".mjs",".cjs",".js",".ts",".mts",".md",".yaml",".yml"]);
+export const REPOSITORY_TEXT_EXTENSIONS = Object.freeze([
+  ".json", ".jsonld", ".jsonl", ".jsonc",
+  ".mjs", ".cjs", ".js", ".jsx", ".ts", ".tsx", ".mts", ".cts",
+  ".md", ".yaml", ".yml", ".py", ".sh", ".bash", ".go", ".rs", ".lean", ".scm", ".ttl",
+]);
 
 export function exactSourceRevision(source) {
   if (typeof source !== 'string' && !(source instanceof Uint8Array))
