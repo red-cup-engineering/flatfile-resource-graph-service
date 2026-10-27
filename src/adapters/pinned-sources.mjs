@@ -1,13 +1,12 @@
-import { createHash } from "node:crypto";
+import { exactSourceRevision, MAX_SOURCE_BYTES, MAX_BATCH_BYTES } from "../provider/exact-source-revision.mjs";
 import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { admitRelativePosixFilepath } from "@red-cup-engineering/computer-filepath-engineering-services-section/admit-relative-posix-filepath";
 import { retainedCarrier } from "@red-cup-engineering/signcell/cell";
 
-export const MAX_SOURCE_BYTES = 1_048_576;
+export { MAX_SOURCE_BYTES, MAX_BATCH_BYTES };
 export const MAX_SOURCE_COUNT = 4096;
-export const MAX_BATCH_BYTES = 16 * MAX_SOURCE_BYTES;
 export const REPOSITORY_TEXT_EXTENSIONS = Object.freeze([".json", ".mjs", ".cjs", ".js", ".ts", ".mts", ".md", ".yaml", ".yml"]);
 
 export function admitSourceSelections(sources, extensions = [".json"]) {
@@ -68,7 +67,7 @@ export async function readPinnedTextSources({ root, sources, extensions = [".jso
         throw new TypeError(`JSON source changed or exceeded its byte limit during observation: ${path}`);
     } finally { await handle.close(); }
     total += bytes.length;
-    const revision = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+    const revision = exactSourceRevision(bytes);
     if (revision !== digest) throw new TypeError(`JSON source digest changed or is not owner-qualified: ${path}`);
     let text;
     try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
