@@ -10,8 +10,13 @@ proved unused. No absence of a text match proves absence of dynamic consumers.
 
 - **JR-1:** Read only the owner's explicitly pinned relative files. Refuse
   traversal, symlinks, stale bytes, non-UTF-8 text and over-budget lots before
-  returning an observation. The existing `source-json` command retains its
-  object-only contract. The lifecycle reader accepts every finite JSON value.
+  returning an observation. The pure analyzer MUST also independently verify
+  the SHA-256 digest of each exact UTF-8 source and enforce both per-file and
+  whole-selection byte budgets before admitting any Cell; a syntactically valid
+  digest string alone is never a source witness. The filesystem reader and
+  analyzer use the same exact-byte digest function. The existing `source-json`
+  command retains its object-only contract. The lifecycle reader accepts
+  every finite JSON value.
 - **JR-2:** Source namespace, path, exact SHA-256 revision, immutable Cell
   identity, source occurrence and schema identity remain separate coordinates.
   Every observed Cell carries a source witness; an unknown authored Cell never
@@ -40,6 +45,17 @@ proved unused. No absence of a text match proves absence of dynamic consumers.
 - **JR-7:** Expose the result through the original FARS CLI/provider/compositor.
   The same cells must pass native SignCraft `KnowledgeBase.fromCells` and support
   a bounded source query. No second index, event store or truth vocabulary.
+
+
+- **JR-8:** A model-free native CLI selection from a committed Git HEAD is
+  admitted as a source selection only after checking each working-tree file
+  against the immutable Git blob identity (SHA-1 or SHA-256, as declared by
+  the repository). Its output passes through the existing JR-1 pin reader,
+  schema and Cell compositor. Reject moving HEAD, symlinks, an unsafe selected
+  path, absent JSON, over-budget lots and modified tracked files. Untracked
+  resources and untraversed submodules are not evidence of nonexistence.
+  Prefix-scoped observations never claim full-repository or live-execution
+  coverage. This receiver creates no Work, deployment, price or economic receipt.
 
 ## Standards and effects
 
