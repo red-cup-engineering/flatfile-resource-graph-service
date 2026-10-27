@@ -9,6 +9,34 @@
 
 Source-pinned JSON and flatfile EAVT resource graph with native CLI, provider observations, and closure rules for cycles, orphans, broken links and stubs.
 
+## Unattended Git-tree source receiving
+
+The same **existing** lifecycle operation can now select tracked JSON, code, and
+documentation from a verified Git `HEAD` without asking a model to construct
+hundreds of manual source pins:
+
+```sh
+flatfile-resource-graph source-json-lifecycle-git /absolute/repository/root \
+  https://github.com/owner/repository 2026-10-27T00:00:00.000Z
+```
+
+Optional final arguments narrow the original source scope to complete
+path-prefix selections (for example, `data` and `src`). The Git selector
+authenticates each selected working-tree byte sequence against its immutable
+Git blob object (SHA-1 or SHA-256), independently obtains its SHA-256 lifecycle
+pin, and lets FARS re-read and verify the same bytes before composing Cells.
+Edited files, symlinks, unsafe paths, empty JSON scopes, moving `HEAD`, and
+over-budget selections refuse without partial source observations. Untracked
+files and submodules are not silently claimed as observed; inspect their
+own source roots separately. Source `scope.exhaustiveRepository` remains
+`false`: static references and declarations do not prove live readers.
+
+The pure lifecycle analyzer now independently checks every source text digest
+and its exact UTF-8 byte limits even when invoked without the filesystem
+adapter. No direct caller can mint source-version witnesses using an asserted
+but unverified SHA-256 string. These are source-inventory and knowledge-receiving
+capabilities, not authorization to delete files or receive Work.
+
 ## Receive JSON resources and their lifecycle
 
 `source-json-lifecycle` reads an explicitly selected repository snapshot and
