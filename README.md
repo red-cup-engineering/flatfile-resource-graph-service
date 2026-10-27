@@ -31,6 +31,13 @@ files and submodules are not silently claimed as observed; inspect their
 own source roots separately. Source `scope.exhaustiveRepository` remains
 `false`: static references and declarations do not prove live readers.
 
+The original Git source selector and lifecycle reader also admit exact-byte
+`.jsonld` documents, including source lots with no ordinary `.json` file.
+Only expanded PROV-O IRIs create declared lifecycle edges: a compacted
+`prov:used` key is not silently interpreted through `@context`. No remote
+context is fetched or second JSON-LD processor is claimed. The same native
+SignCell and FARS compositor receive these documents.
+
 The pure lifecycle analyzer now independently checks every source text digest
 and its exact UTF-8 byte limits even when invoked without the filesystem
 adapter. No direct caller can mint source-version witnesses using an asserted
