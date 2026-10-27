@@ -6,10 +6,12 @@ import { loadFlatfiles } from "../src/substrate/read-flatfiles.mjs";
 import { readLog } from "@red-cup-engineering/semiotic-eavt-services-section/store";
 import { jsonSourcesProvider } from "../src/adapters/json-sources.mjs";
 import { composeProviders, serializeComposition } from "../src/provider/compositor.mjs";
+import { observeJsonResourceLifecycle } from "../src/adapters/json-resource-lifecycle.mjs";
 
 const USAGE = `flatfile-resource-graph <verb> [args]
 
   source-json <root> <owner-namespace-URI> <observed-at>  # JSON [{path,digest}, ...] via stdin
+  source-json-lifecycle <root> <owner-namespace-URI> <observed-at>  # pinned JSON/code snapshot via stdin
   validate <root>
   lint <root>
   show <root> <slug-or-path>
@@ -69,6 +71,13 @@ async function main({ argv, stdin, stdout, stderr }) {
     return verb === undefined ? 2 : 0;
   }
   switch (verb) {
+    case "source-json-lifecycle": {
+      if (rest.length !== 3)
+        return usageError("source-json-lifecycle: expected <root> <owner-namespace-URI> <observed-at>");
+      const [root, namespace, observedAt] = rest;
+      const sources = await readJsonSelectionsFromStdin(stdin);
+      return printAndExit(await observeJsonResourceLifecycle({ root, namespace, sources, observedAt }));
+    }
     case "source-json": {
       if (rest.length !== 3)
         return usageError("source-json: expected <root> <owner-namespace-URI> <observed-at>");
@@ -151,3 +160,4 @@ export const command = Object.freeze({
   formatError: (error) => `${error.message}\n`,
   exitCode: 2,
 });
+

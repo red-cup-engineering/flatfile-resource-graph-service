@@ -1,4 +1,5 @@
 import { admit, defineType } from "@red-cup-engineering/signcell/type-system";
+import { admitCell, measured } from "@red-cup-engineering/signcell/cell";
 
 function established(result) {
   if (result.ok) return result.value;
@@ -96,6 +97,11 @@ export function validateResourceGraph(value, label = "resource graph") {
   const focus = value.focus ?? resource;
   const observedAt = value.observedAt;
   const cells = value.cells.map((cell, index) => {
+    if (hasOwn(cell, "for") || hasOwn(cell, "against")) {
+      const native = admitCell(cell);
+      if (!measured(native)) throw new TypeError(`${label}.cells[${index}] must retain measured source evidence`);
+      return native;
+    }
     return Object.freeze({
       subject: cell.subject,
       predicate: cell.predicate,
@@ -117,3 +123,4 @@ export function validateProviderOutcome(value, providerId) {
     diagnostics: Object.freeze([...diagnostics]),
   });
 }
+
