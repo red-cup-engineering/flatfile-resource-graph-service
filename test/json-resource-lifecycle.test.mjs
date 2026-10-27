@@ -159,7 +159,7 @@ test("stale, foreign, symlinked, malformed and over-budget snapshots return no p
   await symlink(join(root, pins[0].path), join(root, "alias.json"));
   await assert.rejects(() => observeJsonResourceLifecycle({ root, namespace, observedAt: at,
     sources: [{ ...pins[0], path: "alias.json" }] }), /changes its selected path/);
-  assert.throws(() => analyzeJsonResourceLifecycle({ namespace, files: [{ path: "broken.json", revision: pins[0].digest, text: "{" }] }), /does not parse/);
+  assert.throws(() => analyzeJsonResourceLifecycle({ namespace, files: [{ path: "broken.json", revision: digest("{"), text: "{" }] }), /does not parse/);
   assert.throws(() => analyzeJsonResourceLifecycle({ namespace, files: [source("huge.json", Array(4097).fill(0))] }), /4096-node/);
   assert.throws(() => analyzeJsonResourceLifecycle({ namespace, files: [source("huge-object.json", { values: Array(4097).fill(0) })] }), /4096-node/);
 });
