@@ -1,18 +1,18 @@
 # Native JSON lifecycle receiving
 
-The physical FARS CLI received a source snapshot of
-[`red-cup-engineering/signcell` at `06386c62777681152cd93caf3377a08b7b75c3a8`](https://github.com/red-cup-engineering/signcell/tree/06386c62777681152cd93caf3377a08b7b75c3a8).
+The physical FARS CLI received an exact source-owner repository snapshot.
 All 112 selected JSON, JavaScript and documentation files were checked against
 their Git blob identities before acquisition; their exact 1,254,104 bytes were
-then selected by SHA-256 pins. The observation instant was
+then selected by SHA-256 pins. Detailed donor coordinates and source content
+belong to the source owner's private receiving record. This public record
+reports aggregate measurements only. The observation instant was
 `2026-10-27T02:59:02.000Z`.
 
 The unchanged physical CLI entry point returned status zero. Its lifecycle
 provider received 31 JSON resources and composed 18,304 native Cells with source
 revision witnesses. Twenty-four resources had path references in the selected
 snapshot; seven had neither a path reference nor an expanded PROV declaration.
-The latter seven were the JSON records beneath
-`data/records/measurements/2026-10-27-exact-event-custody/`.
+The detailed source-owner record retains each of the seven selected paths.
 
 None of the 31 JSON resources declared a `$schema` association. The receiving
 result therefore retains 31 schema-binding actions. It also exposes 312
