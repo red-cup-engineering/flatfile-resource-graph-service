@@ -71,7 +71,7 @@ export function readGitRefSourceSnapshot({ root, ref, prefixes = [] }) {
     if (!['100644', '100755'].includes(identity[1]) || identity[2] !== 'blob')
       throw new TypeError('Selected Git source is not a regular file: ' + path);
     if (selected.length >= 4096) throw new RangeError('Git lifecycle source-count bound exceeded');
-    selected.push({ path, object: identity[3] });
+    selected.push({ path, object: identity[3], mode: identity[1] });
   }
   if (!selected.some(item => item.path.endsWith('.json') || item.path.endsWith('.jsonld')))
     throw new TypeError('Git source scope contains no JSON-valued resources');
@@ -114,6 +114,14 @@ export function readGitRefSourceSnapshot({ root, ref, prefixes = [] }) {
     throw new TypeError('Historical Git source batch incomplete or ref moved');
   return Object.freeze({ kind: 'fars.git-ref-source-snapshot/v1',
     sourceRef: ref, sourceCommit: commit, sourceTree: tree,
+    // Keep Git OIDs separate from the exact-byte SHA-256 revisions consumed by SignCell.
+    // Each OID was checked against the native blob header and bytes above; the
+    // Git ref and commit are still source observations, not consumer receipts.
+    sourceObjectFormat: format,
+    sourceFiles: Object.freeze(selected.map((source, index) => Object.freeze({
+      sourcePath: source.path, sourceGitBlobSha: source.object,
+      sourceGitFileMode: source.mode, contentDigest: files[index].revision,
+    }))),
     exhaustiveRepository: false, prefixes: Object.freeze([...prefixes]),
     files: Object.freeze(files) });
 }
