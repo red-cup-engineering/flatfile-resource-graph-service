@@ -1,13 +1,12 @@
-import { exactSourceRevision, MAX_SOURCE_BYTES, MAX_BATCH_BYTES } from "../provider/exact-source-revision.mjs";
+import { exactSourceRevision, MAX_SOURCE_BYTES, MAX_BATCH_BYTES, REPOSITORY_TEXT_EXTENSIONS } from "../provider/exact-source-revision.mjs";
 import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { admitRelativePosixFilepath } from "@red-cup-engineering/computer-filepath-engineering-services-section/admit-relative-posix-filepath";
 import { retainedCarrier } from "@red-cup-engineering/signcell/cell";
 
-export { MAX_SOURCE_BYTES, MAX_BATCH_BYTES };
+export { MAX_SOURCE_BYTES, MAX_BATCH_BYTES, REPOSITORY_TEXT_EXTENSIONS };
 export const MAX_SOURCE_COUNT = 4096;
-export const REPOSITORY_TEXT_EXTENSIONS = Object.freeze([".json", ".mjs", ".cjs", ".js", ".ts", ".mts", ".md", ".yaml", ".yml"]);
 
 export function admitSourceSelections(sources, extensions = [".json"]) {
   const selected = retainedCarrier(sources);
