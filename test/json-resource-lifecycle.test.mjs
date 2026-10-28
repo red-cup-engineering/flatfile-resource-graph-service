@@ -224,9 +224,14 @@ test("exact JSON-LD source and expanded PROV use flow through the native lifecyc
   assert.deepEqual(target.declaredConnections.map(row => row.role), ["reader"]);
   const relation = report.cells.find(row => row.predicate === PROV + "used");
   assert.ok(relation);
-  assert.equal(relation.for[0].interpretation, "declared-intent");
-  assert.equal(relation.for[0].sourcePath, expanded.path);
-  assert.equal(relation.for[0].contentDigest, expanded.revision);
+  // The original DREW relation-web wraps the source declaration witness in
+  // its measured provider occurrence; neither custody tier may be discarded.
+  assert.equal(relation.for[0].kind, "flatfile.drew-relation-occurrence");
+  assert.equal(relation.for[0].provider, "fars:json-resource-lifecycle");
+  assert.equal(relation.for[0].evidence?.kind, "fars.declared-resource-lifecycle/v1");
+  assert.equal(relation.for[0].evidence?.interpretation, "declared-intent");
+  assert.equal(relation.for[0].evidence?.sourcePath, expanded.path);
+  assert.equal(relation.for[0].evidence?.contentDigest, expanded.revision);
 
   const compact = source("data/compact.jsonld", {
     "@context": { "prov": PROV },
@@ -288,6 +293,9 @@ test("historical archive ref enters the original FARS SignCell graph through the
   const archived = "refs/archive/unfinished-json-consumer";
   git("update-ref", archived, original);
   git("rm", "-q", "data/sample.json");
+  // Git removes the last tracked file and its now-empty directory. Recreate
+  // the fixture's receiving home before introducing a distinct current file.
+  await mkdir(join(root, "data"), { recursive: true });
   await writeFile(join(root, "data/current.json"), JSON.stringify({ currentOnly: true }));
   git("add", "."); git("commit", "-qm", "Changed current source");
   assert.notEqual(git("rev-parse", "HEAD"), original);
