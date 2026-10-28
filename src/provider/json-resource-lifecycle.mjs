@@ -130,8 +130,8 @@ export function analyzeJsonResourceLifecycle({ namespace, files }) {
       add(container, "urn:fars:source-path", document.sourceFilePath, witness);
       add(container, "urn:fars:source-revision", document.revision, witness);
       add(document.resource, PROV + "wasDerivedFrom", container, witness);
-      add(document.resource, NAMESPACE + "line-number", document.occurrence.lineNumber, witness);
-      add(document.resource, NAMESPACE + "byte-offset", document.occurrence.byteOffset, witness);
+      add(document.resource, NAMESPACE + "line-number", encodeJsonGraphValue(document.occurrence.lineNumber), witness);
+      add(document.resource, NAMESPACE + "byte-offset", encodeJsonGraphValue(document.occurrence.byteOffset), witness);
       add(document.resource, NAMESPACE + "row-digest", document.occurrence.rowContentDigest, witness);
     }
     add(document.resource, "urn:fars:source-path", document.path, witness);
