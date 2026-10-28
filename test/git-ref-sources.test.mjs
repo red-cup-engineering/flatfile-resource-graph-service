@@ -85,3 +85,14 @@ test('original byte budget refuses giant tracked JSON before returning any sourc
   git(root,'add','data/giant.json'); git(root,'commit','-qm','Oversized original');
   assert.throws(() => readGitRefSourceSnapshot({root,ref:'refs/heads/main'}), /byte bounds/);
 });
+
+
+test('JSONL-only historical Git tree can be admitted as a genuine JSON resource source', t => {
+  const { root } = fixture(t);
+  git(root,'rm','-q','data/new.json');
+  git(root,'commit','-qm','Keep only original JSONL source');
+  const original=readGitRefSourceSnapshot({root,ref:'refs/heads/main',prefixes:['data']});
+  assert.deepEqual(original.files.map(item=>item.path),['data/events.jsonl']);
+  assert.equal(original.sourceFiles[0].contentDigest,original.files[0].revision);
+  assert.equal(original.files[0].text,'{"source":"data/old.json"}\n');
+});
