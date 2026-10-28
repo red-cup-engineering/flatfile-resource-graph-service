@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { extname } from 'node:path';
 import {
-  exactSourceRevision, MAX_SOURCE_BYTES, MAX_BATCH_BYTES, REPOSITORY_TEXT_EXTENSIONS, isGeneratedHostStatePath,
+  exactSourceRevision, MAX_SOURCE_BYTES, MAX_BATCH_BYTES, REPOSITORY_TEXT_EXTENSIONS, isGeneratedHostStatePath, isJsonResourceSourcePath,
 } from '../provider/exact-source-revision.mjs';
 
 const MAX_TREE_BYTES = 64 * MAX_SOURCE_BYTES;
@@ -78,7 +78,7 @@ export function readGitRefSourceSnapshot({ root, ref, prefixes = [] }) {
     if (selected.length >= 4096) throw new RangeError('Git lifecycle source-count bound exceeded');
     selected.push({ path, object: identity[3], mode: identity[1] });
   }
-  if (!selected.some(item => item.path.endsWith('.json') || item.path.endsWith('.jsonld')))
+  if (!selected.some(item => isJsonResourceSourcePath(item.path)))
     throw new TypeError('Git source scope contains no JSON-valued resources');
   selected.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   const input = Buffer.from(selected.map(item => item.object).join('\n') + '\n', 'ascii');
