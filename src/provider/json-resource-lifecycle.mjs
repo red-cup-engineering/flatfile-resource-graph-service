@@ -3,6 +3,7 @@ import { admit, defineType, typeIdentity } from "@red-cup-engineering/signcell/t
 import { parseJsonValue } from "@red-cup-engineering/json-services-section/parse-json-value";
 import { sourceNamespace } from "./source-namespace.mjs";
 import { encodeJsonGraphValue, projectAttributeCells } from "./attribute-projection.mjs";
+import { admitExactTextSourceRevisions } from "./exact-source-revision.mjs";
 
 const RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 const RDFS = "http://www.w3.org/2000/01/rdf-schema#";
@@ -36,17 +37,9 @@ function links(value) {
 /** Pure receiving over exact acquired text. References are observations, not execution proofs. */
 export function analyzeJsonResourceLifecycle({ namespace, files }) {
   const owner = sourceNamespace(namespace), sources = retainedCarrier(files);
-  if (!Array.isArray(sources) || sources.length < 1 || sources.length > 4096)
-    throw new TypeError("JSON lifecycle requires a bounded exact source snapshot");
-  const seen = new Set();
-  for (const source of sources) {
-    if (!record(source) || Object.keys(source).sort().join() !== "path,revision,text" ||
-        !text(source.path) || !/^sha256:[a-f0-9]{64}$/u.test(source.revision) || typeof source.text !== "string" ||
-        seen.has(source.path)) throw new TypeError("JSON lifecycle source coordinates must be exact and distinct");
-    seen.add(source.path);
-  }
+  admitExactTextSourceRevisions(sources);
   const ordered = [...sources].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
-  const documents = ordered.filter(source => source.path.endsWith(".json")).map(source => {
+  const documents = ordered.filter(source => (source.path.endsWith(".json") || source.path.endsWith(".jsonld"))).map(source => {
     let value;
     try { value = parseJsonValue(source.text); }
     catch { throw new TypeError(`selected JSON source does not parse: ${source.path}`); }

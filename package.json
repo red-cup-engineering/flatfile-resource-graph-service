@@ -63,7 +63,8 @@
     "./package.json": "./package.json",
     "./world-observation": "./src/world-observation.mjs",
     "./seed-world": "./src/seed-world.mjs",
-    "./legacy-world": "./src/legacy-world.mjs"
+    "./legacy-world": "./src/legacy-world.mjs",
+    "./adapters/git-ref-sources": "./src/adapters/git-ref-sources.mjs"
   },
   "files": [
     "src/",
@@ -88,4 +89,3 @@
     "url": "https://github.com/561-group/.github/blob/main/TIPS.md"
   }
 }
-

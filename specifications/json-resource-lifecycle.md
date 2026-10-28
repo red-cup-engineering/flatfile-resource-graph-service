@@ -10,8 +10,13 @@ proved unused. No absence of a text match proves absence of dynamic consumers.
 
 - **JR-1:** Read only the owner's explicitly pinned relative files. Refuse
   traversal, symlinks, stale bytes, non-UTF-8 text and over-budget lots before
-  returning an observation. The existing `source-json` command retains its
-  object-only contract. The lifecycle reader accepts every finite JSON value.
+  returning an observation. The pure analyzer MUST also independently verify
+  the SHA-256 digest of each exact UTF-8 source and enforce both per-file and
+  whole-selection byte budgets before admitting any Cell; a syntactically valid
+  digest string alone is never a source witness. The filesystem reader and
+  analyzer use the same exact-byte digest function. The existing `source-json`
+  command retains its object-only contract. The lifecycle reader accepts
+  every finite JSON value.
 - **JR-2:** Source namespace, path, exact SHA-256 revision, immutable Cell
   identity, source occurrence and schema identity remain separate coordinates.
   Every observed Cell carries a source witness; an unknown authored Cell never
@@ -41,7 +46,40 @@ proved unused. No absence of a text match proves absence of dynamic consumers.
   The same cells must pass native SignCraft `KnowledgeBase.fromCells` and support
   a bounded source query. No second index, event store or truth vocabulary.
 
+
+- **JR-8:** A model-free native CLI selection from a committed Git HEAD is
+  admitted as a source selection only after checking each working-tree file
+  against the immutable Git blob identity (SHA-1 or SHA-256, as declared by
+  the repository). Its output passes through the existing JR-1 pin reader,
+  schema and Cell compositor. Reject moving HEAD, symlinks, an unsafe selected
+  path, absent JSON, over-budget lots and modified tracked files. Untracked
+  resources and untraversed submodules are not evidence of nonexistence.
+  Prefix-scoped observations never claim full-repository or live-execution
+  coverage. The selector disables Git `refs/replace` substitution and implicit
+  lazy network acquisition: neither may alter the claimed immutable commit.
+  This receiver creates no Work, deployment, price or economic receipt.
+
+- **JR-9:** A selected historical branch, divergent source ref, or faux archive tag
+  is a *source selector*, not a completed Archive or license to delete it. Read
+  its original committed Git object tree without consulting or altering the
+  worktree, disabling object replacement and lazy network acquisition. Record
+  original ref, immutable commit and tree IDs separately from source paths,
+  exact Git blob IDs, SHA-256 revisions, schema declarations, Cells and runtime
+  consumer receipts. Recheck the ref after the bounded batch; refuse moving
+  refs, invalid UTF-8, non-regular files, incomplete/forged objects and budgets
+  exceeded before projecting any Cell. Feed these bytes to the existing JR-1
+  analyzer and JR-7 provider/compositor, preserving declared-versus-executed
+  unknowns. Git Services retains ref status, merge/supersession, consumer
+  receiving and any branch retirement Work; FARS never changes a ref.
+
 ## Standards and effects
+
+W3C JSON-LD `.jsonld` source files are admitted as bounded JSON carriers using the
+same original parser, source witness and Cell compositor as `.json`. Only a
+source-authored, explicitly expanded PROV-O predicate qualifies a declared
+lifecycle edge; the reader does not expand `@context` or interpret compact
+`prov:used` as equivalent to its expanded IRI. This is source admission,
+not a claim of JSON-LD 1.1 processor or RDF dataset conformance.
 
 JSON Schema 2020-12 is the schema carrier; RFC 6901 identifies a schema property;
 RFC 6920 and upstream canonical CBOR identify native Cells; PROV-O describes
@@ -70,3 +108,23 @@ https://json-schema.org/draft/2020-12/json-schema-core.html ;
 https://www.rfc-editor.org/rfc/rfc6901 ;
 https://www.rfc-editor.org/rfc/rfc6920 ;
 https://www.w3.org/TR/json-ld11/ .
+
+## JR-9 — Generated host state versus authored JSON source
+
+Committed files in a `.wrangler/` directory (including Miniflare cache,
+SQLite and WAL state) are effectful host observations, even if named `.json`.
+They are not inferred to be orphaned authoring resources, unlicensed data
+products, or positive witnesses of a runtime reader. Both Git HEAD and
+historical-ref automatic source selection MUST omit their bytes while preserving
+their original Git objects; historical selection reports how many eligible-scope
+entries it excluded. Explicit pinned lifecycle admission MUST refuse such a
+path rather than silently declaring it an authored Resource Thing. The existing
+host telemetry and machine-state receivers own genuinely admitted runtime data.
+
+Source roles are decided by exact path segments in the shared pure FARS
+source-admission law, not by arbitrary short JSON keys, the absence of a text
+reference or a Git archive label. `wrangler-config.json` in an ordinary source
+folder remains eligible. A historical tree that contains only generated host
+JSON has no authored JSON receiving scope; the original deterministic reader
+refuses rather than inventing a graph. The omitted historical objects remain
+available to their original Git custodian.

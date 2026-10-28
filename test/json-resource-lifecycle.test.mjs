@@ -27,6 +27,15 @@ const schema = { $schema: "https://json-schema.org/draft/2020-12/schema", $id: "
 const document = { $schema: schema.$id, id: "sample", val: 2.75 };
 const PROV = "http://www.w3.org/ns/prov#";
 
+test("pure lifecycle refuses a falsely asserted source revision before minting any witnessed cells", () => {
+  const original = source("data/observation.json", { value: 1 });
+  assert.throws(() => analyzeJsonResourceLifecycle({ namespace,
+    files: [{ ...original, text: JSON.stringify({ value: 2 }) }] }), /digest differs/);
+  assert.throws(() => analyzeJsonResourceLifecycle({ namespace,
+    files: [{ ...original, revision: "sha256:" + "0".repeat(64) }] }), /digest differs/);
+});
+
+
 test("exact schema receiving names short properties without rewriting standard keys or decimal JSON", () => {
   const report = analyzeJsonResourceLifecycle({ namespace, files: [source("schemas/observation.json", schema), source("data/sample.json", document)] });
   const observed = report.resources.find(row => row.sourcePath === "data/sample.json");
@@ -150,6 +159,29 @@ test("original provider and physical CLI consume the same pinned JSON/code snaps
   assert.ok(output.cells.every(isCell));
 });
 
+test("native FARS Git-tree lifecycle automatically pins and receives one committed repository lot", async t => {
+  const { root } = await fixture(t);
+  for (const args of [
+    ["init", "-q"], ["config", "user.email", "source-test@example.invalid"],
+    ["config", "user.name", "source-test"], ["add", "."], ["commit", "-qm", "Pinned source cut"],
+  ]) {
+    const result = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+  }
+  const argv = ["scripts/flatfile-resource-graph-cli.mjs", "source-json-lifecycle-git", root, namespace, at];
+  const received = spawnSync(process.execPath, argv, { encoding: "utf8", timeout: 30_000, maxBuffer: 4_194_304 });
+  assert.equal(received.status, 0, received.stderr);
+  const report = JSON.parse(received.stdout);
+  assert.equal(report.kind, "fars.json-resource-lifecycle/v1");
+  assert.equal(report.resources.length, 2);
+  assert.ok(report.cells.every(isCell));
+  await writeFile(join(root, "src/reader.mjs"), "// edited after the source commit\n");
+  const refused = spawnSync(process.execPath, argv, { encoding: "utf8", timeout: 30_000 });
+  assert.equal(refused.status, 2);
+  assert.equal(refused.stdout, "");
+  assert.match(refused.stderr, /differs from immutable HEAD/);
+});
+
 test("stale, foreign, symlinked, malformed and over-budget snapshots return no partial graph", async t => {
   const { root, pins } = await fixture(t);
   await assert.rejects(() => observeJsonResourceLifecycle({ root, namespace, observedAt: at,
@@ -159,7 +191,122 @@ test("stale, foreign, symlinked, malformed and over-budget snapshots return no p
   await symlink(join(root, pins[0].path), join(root, "alias.json"));
   await assert.rejects(() => observeJsonResourceLifecycle({ root, namespace, observedAt: at,
     sources: [{ ...pins[0], path: "alias.json" }] }), /changes its selected path/);
-  assert.throws(() => analyzeJsonResourceLifecycle({ namespace, files: [{ path: "broken.json", revision: pins[0].digest, text: "{" }] }), /does not parse/);
+  assert.throws(() => analyzeJsonResourceLifecycle({ namespace, files: [{ path: "broken.json", revision: digest("{"), text: "{" }] }), /does not parse/);
   assert.throws(() => analyzeJsonResourceLifecycle({ namespace, files: [source("huge.json", Array(4097).fill(0))] }), /4096-node/);
   assert.throws(() => analyzeJsonResourceLifecycle({ namespace, files: [source("huge-object.json", { values: Array(4097).fill(0) })] }), /4096-node/);
+});
+
+test("exact JSON-LD source and expanded PROV use flow through the native lifecycle and provider", async t => {
+  const root = await mkdtemp(join(tmpdir(), "fars-jsonld-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const data = source("data/resource.jsonld", { id: "source-observation" });
+  const focus = jsonSourceFocus(namespace, data.path);
+  const expanded = source("data/relations.jsonld", {
+    "@context": { "prov": PROV },
+    "@graph": [{
+      "@id": "urn:561:reader:observed",
+      [PROV + "used"]: { "@id": focus }
+    }]
+  });
+  const lot = [data, expanded];
+  for (const item of lot) {
+    const path = join(root, item.path);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, item.text);
+  }
+  const report = await observeJsonResourceLifecycle({
+    root, namespace, sources: lot.map(row => ({ path: row.path, digest: row.revision })),
+    observedAt: at,
+  });
+  assert.equal(report.resources.length, 2);
+  const target = report.resources.find(row => row.sourcePath === data.path);
+  assert.equal(target.classification, "declared-connected");
+  assert.deepEqual(target.declaredConnections.map(row => row.role), ["reader"]);
+  const relation = report.cells.find(row => row.predicate === PROV + "used");
+  assert.ok(relation);
+  assert.equal(relation.for[0].interpretation, "declared-intent");
+  assert.equal(relation.for[0].sourcePath, expanded.path);
+  assert.equal(relation.for[0].contentDigest, expanded.revision);
+
+  const compact = source("data/compact.jsonld", {
+    "@context": { "prov": PROV },
+    "@graph": [{
+      "@id": "urn:561:reader:unqualified",
+      "prov:used": { "@id": focus }
+    }]
+  });
+  const notExpanded = analyzeJsonResourceLifecycle({ namespace, files: [data, compact] });
+  const original = notExpanded.resources.find(row => row.sourcePath === data.path);
+  assert.equal(original.classification, "unclaimed-in-snapshot");
+  assert.equal(original.declaredConnections.length, 0,
+    "a compact IRI cannot be inferred from an unprocessed JSON-LD context");
+  assert.ok(notExpanded.resources.some(row => row.sourcePath === compact.path));
+});
+
+test("Git and physical FARS snapshots include JSONL, TSX and Python source references without claiming execution", async t => {
+  const { root, pins } = await fixture(t);
+  const additional = [
+    source("state/observations.jsonl", '{"source":"data/sample.json","kind":"event"}' + String.fromCharCode(10)),
+    source("src/consumer.tsx", 'export const path = "data/sample.json";'),
+    source("scripts/consumer.py", 'record_path = "data/sample.json"'),
+  ];
+  for (const item of additional) {
+    const location = join(root, item.path);
+    await mkdir(dirname(location), { recursive: true });
+    await writeFile(location, item.text);
+  }
+  const report = await observeJsonResourceLifecycle({
+    root, namespace, observedAt: at,
+    sources: [...pins, ...additional.map(item => ({ path: item.path, digest: item.revision }))],
+  });
+  const resource = report.resources.find(item => item.sourcePath === "data/sample.json");
+  for (const item of additional) {
+    const mention = resource.references.find(reference => reference.sourcePath === item.path);
+    assert.ok(mention, "each source language must be retained as a candidate reader or writer");
+    assert.equal(mention.kind, "text-reference");
+    assert.equal(mention.contentDigest, item.revision);
+  }
+  assert.equal(resource.classification, "referenced");
+  assert.ok(resource.actions.some(action => action.action === "qualify-runtime-connection"));
+  assert.equal(report.resources.some(item => item.sourcePath.endsWith(".jsonl")), false,
+    "JSONL is source evidence, not an invented single JSON value");
+  assert.ok(report.cells.every(isCell));
+});
+
+test("historical archive ref enters the original FARS SignCell graph through the native CLI", async t => {
+  const { root } = await fixture(t);
+  const git = (...args) => {
+    const outcome = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    assert.equal(outcome.status, 0, outcome.stderr);
+    return outcome.stdout.trim();
+  };
+  git("init", "-q", "-b", "main");
+  git("config", "user.email", "fars-source@example.invalid");
+  git("config", "user.name", "FARS source witness");
+  git("add", "."); git("commit", "-qm", "Original JSON and code resource");
+  const original = git("rev-parse", "HEAD");
+  const archived = "refs/archive/unfinished-json-consumer";
+  git("update-ref", archived, original);
+  git("rm", "-q", "data/sample.json");
+  await writeFile(join(root, "data/current.json"), JSON.stringify({ currentOnly: true }));
+  git("add", "."); git("commit", "-qm", "Changed current source");
+  assert.notEqual(git("rev-parse", "HEAD"), original);
+  const command = ["scripts/flatfile-resource-graph-cli.mjs", "source-json-lifecycle-git-ref",
+    root, namespace, at, archived];
+  const received = spawnSync(process.execPath, command, {
+    encoding: "utf8", timeout: 30_000, maxBuffer: 8_388_608,
+  });
+  assert.equal(received.status, 0, received.stderr);
+  const result = JSON.parse(received.stdout);
+  assert.equal(result.kind, "fars.json-resource-lifecycle/v1");
+  assert.equal(result.gitSource.sourceCommit, original);
+  assert.equal(result.gitSource.sourceRef, archived);
+  assert.equal(result.gitSource.exhaustiveRepository, false);
+  assert.equal(result.resources.some(item => item.sourcePath === "data/current.json"), false);
+  const old = result.resources.find(item => item.sourcePath === "data/sample.json");
+  assert.equal(old.schema.status, "admitted");
+  assert.equal(old.classification, "referenced");
+  assert.ok(result.cells.some(item => item.subject === old.resource));
+  assert.ok(result.providers.some(item => item.status === "observed"));
+  assert.equal(git("rev-parse", archived), original, "observation must not retarget retired or unfinished refs");
 });
