@@ -27,8 +27,9 @@ jobs:
           node --check src/provider/json-resource-lifecycle.mjs
           node --check test/json-resource-lifecycle.test.mjs
           node --check test/host-generated-source-boundary.test.mjs
+          node --check test/repository-registry-routing.test.mjs
       - name: Test exact source identity and Git-tree selection
-        run: node --test test/exact-source-revision.test.mjs test/git-source-pins.test.mjs test/git-ref-sources.test.mjs test/host-generated-source-boundary.test.mjs
+        run: node --test test/exact-source-revision.test.mjs test/git-source-pins.test.mjs test/git-ref-sources.test.mjs test/host-generated-source-boundary.test.mjs test/repository-registry-routing.test.mjs
   native-cell-receiving:
     needs: source-identity
     runs-on: ubuntu-24.04
