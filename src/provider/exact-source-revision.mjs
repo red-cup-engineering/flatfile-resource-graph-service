@@ -13,6 +13,19 @@ export const REPOSITORY_TEXT_EXTENSIONS = Object.freeze([
   ".md", ".yaml", ".yml", ".py", ".sh", ".bash", ".go", ".rs", ".lean", ".scm", ".ttl",
 ]);
 
+/** Only genuine authored sources are eligible for automatic JSON lifecycle projection.
+ * Wrangler/Miniflare .wrangler trees are effectful host caches, not orphaned
+ * schema resources. Historical Git objects remain independently inspectable.
+ * Exact directory segments avoid false positives on authored wrangler-config.json.
+ */
+export function isGeneratedHostStatePath(path) {
+  if (typeof path !== "string" || path.length === 0 || path.startsWith("/") ||
+      path.includes("\0") || path.split("/").some(segment =>
+        segment === "" || segment === "." || segment === ".."))
+    throw new TypeError("Source path must be a normalized relative path");
+  return path.split("/").includes(".wrangler");
+}
+
 export function exactSourceRevision(source) {
   if (typeof source !== 'string' && !(source instanceof Uint8Array))
     throw new TypeError('exact source revision requires text or bytes');
@@ -36,6 +49,8 @@ export function admitExactTextSourceRevisions(sources) {
         typeof source.revision !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(source.revision) ||
         seen.has(source.path))
       throw new TypeError('JSON lifecycle source coordinates must be exact and distinct');
+    if (isGeneratedHostStatePath(source.path))
+      throw new TypeError(`Effectful generated host state is not an authored JSON source: ${source.path}`);
     seen.add(source.path);
     const length = Buffer.byteLength(source.text, 'utf8');
     if (length > MAX_SOURCE_BYTES)

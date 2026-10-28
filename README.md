@@ -121,3 +121,16 @@ The [native receiving record](specifications/json-resource-lifecycle-receiving.m
 records the physical CLI's reception of an exact SignCell repository snapshot
 and the independently unpacked package checks.
 
+
+## Generated host state is not authored JSON
+
+The native Git selectors use the pure `isGeneratedHostStatePath` source
+admission law. A selected `.wrangler/` subtree contains effectful
+Wrangler/Miniflare state, not candidate orphaned authored resources.
+Automatic Git HEAD and archival-ref selections omit it; the latter reports
+`gitSource.excludedGeneratedHostStateCount` without reading its bytes.
+Original Git history is unchanged. Explicit pinned JSON lifecycle input
+refuses such paths before projecting any source Cell. This does not apply to
+authored `wrangler-config.json` or other ordinary JSON files, and it does
+not claim absent runtime consumers. Native host telemetry retains separate
+authority over real machine state.

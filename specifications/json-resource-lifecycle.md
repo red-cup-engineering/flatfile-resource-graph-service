@@ -108,3 +108,23 @@ https://json-schema.org/draft/2020-12/json-schema-core.html ;
 https://www.rfc-editor.org/rfc/rfc6901 ;
 https://www.rfc-editor.org/rfc/rfc6920 ;
 https://www.w3.org/TR/json-ld11/ .
+
+## JR-9 — Generated host state versus authored JSON source
+
+Committed files in a `.wrangler/` directory (including Miniflare cache,
+SQLite and WAL state) are effectful host observations, even if named `.json`.
+They are not inferred to be orphaned authoring resources, unlicensed data
+products, or positive witnesses of a runtime reader. Both Git HEAD and
+historical-ref automatic source selection MUST omit their bytes while preserving
+their original Git objects; historical selection reports how many eligible-scope
+entries it excluded. Explicit pinned lifecycle admission MUST refuse such a
+path rather than silently declaring it an authored Resource Thing. The existing
+host telemetry and machine-state receivers own genuinely admitted runtime data.
+
+Source roles are decided by exact path segments in the shared pure FARS
+source-admission law, not by arbitrary short JSON keys, the absence of a text
+reference or a Git archive label. `wrangler-config.json` in an ordinary source
+folder remains eligible. A historical tree that contains only generated host
+JSON has no authored JSON receiving scope; the original deterministic reader
+refuses rather than inventing a graph. The omitted historical objects remain
+available to their original Git custodian.

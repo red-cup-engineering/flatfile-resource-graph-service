@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { extname } from 'node:path';
 import {
-  exactSourceRevision, MAX_SOURCE_BYTES, MAX_BATCH_BYTES, REPOSITORY_TEXT_EXTENSIONS,
+  exactSourceRevision, MAX_SOURCE_BYTES, MAX_BATCH_BYTES, REPOSITORY_TEXT_EXTENSIONS, isGeneratedHostStatePath,
 } from '../provider/exact-source-revision.mjs';
 
 const MAX_TREE_BYTES = 64 * MAX_SOURCE_BYTES;
@@ -56,6 +56,7 @@ export function readGitRefSourceSnapshot({ root, ref, prefixes = [] }) {
   const listed = readGit(directory, ['ls-tree', '-r', '-z', '--full-tree', commit]);
   const decoder = new TextDecoder('utf-8', { fatal: true });
   const selected = [];
+  let excludedGeneratedHostStateCount = 0;
   for (let offset = 0; offset < listed.length;) {
     const end = listed.indexOf(0, offset);
     if (end < 0) throw new TypeError('Unterminated native Git tree entry');
@@ -68,6 +69,10 @@ export function readGitRefSourceSnapshot({ root, ref, prefixes = [] }) {
     if (!REPOSITORY_TEXT_EXTENSIONS.includes(extname(path)) ||
         (prefixes.length && !prefixes.some(prefix => path === prefix || path.startsWith(prefix + '/')))) continue;
     if (!sourcePath(path)) throw new TypeError('Unsafe Git source path');
+    if (isGeneratedHostStatePath(path)) {
+      excludedGeneratedHostStateCount++;
+      continue;
+    }
     if (!['100644', '100755'].includes(identity[1]) || identity[2] !== 'blob')
       throw new TypeError('Selected Git source is not a regular file: ' + path);
     if (selected.length >= 4096) throw new RangeError('Git lifecycle source-count bound exceeded');
@@ -118,6 +123,7 @@ export function readGitRefSourceSnapshot({ root, ref, prefixes = [] }) {
     // Each OID was checked against the native blob header and bytes above; the
     // Git ref and commit are still source observations, not consumer receipts.
     sourceObjectFormat: format,
+    excludedGeneratedHostStateCount,
     sourceFiles: Object.freeze(selected.map((source, index) => Object.freeze({
       sourcePath: source.path, sourceGitBlobSha: source.object,
       sourceGitFileMode: source.mode, contentDigest: files[index].revision,

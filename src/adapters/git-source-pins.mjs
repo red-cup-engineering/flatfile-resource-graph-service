@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { extname, resolve } from "node:path";
-import { exactSourceRevision, MAX_BATCH_BYTES, MAX_SOURCE_BYTES, REPOSITORY_TEXT_EXTENSIONS } from "../provider/exact-source-revision.mjs";
+import { exactSourceRevision, MAX_BATCH_BYTES, MAX_SOURCE_BYTES, REPOSITORY_TEXT_EXTENSIONS, isGeneratedHostStatePath } from "../provider/exact-source-revision.mjs";
 
 const SAFE_NAME = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\0]+$/u;
 const MAX_GIT_TREE_BYTES = 64 * MAX_SOURCE_BYTES;
@@ -57,6 +57,9 @@ export function gitTrackedLifecyclePins({ root, prefixes = [] }) {
       throw new TypeError("Git source tree includes a selected unsafe path");
     if (!["100644", "100755"].includes(match[1]) || match[2] !== "blob")
       throw new TypeError(`Git source refuses symlink or non-file: ${sourcePath}`);
+    // Ignore effectful development-host state before touching its bytes.
+    // Only original, eligible code and data are automatically projected as Cells.
+    if (isGeneratedHostStatePath(sourcePath)) continue;
     const full = resolve(sourceRoot, sourcePath);
     if (realpathSync(full) !== full || !lstatSync(full).isFile())
       throw new TypeError(`Git source moved or changed selected file: ${sourcePath}`);

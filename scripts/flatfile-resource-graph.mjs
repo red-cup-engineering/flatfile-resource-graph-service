@@ -92,6 +92,7 @@ async function main({ argv, stdin, stdout, stderr }) {
         gitSource: Object.freeze({ kind: original.kind, sourceRef: original.sourceRef,
           sourceCommit: original.sourceCommit, sourceTree: original.sourceTree,
           sourceObjectFormat: original.sourceObjectFormat,
+          excludedGeneratedHostStateCount: original.excludedGeneratedHostStateCount,
           sourceFiles: original.sourceFiles,
           prefixes: original.prefixes, exhaustiveRepository: false }),
       }));
