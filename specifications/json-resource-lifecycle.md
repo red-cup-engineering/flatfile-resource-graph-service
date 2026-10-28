@@ -128,3 +128,32 @@ folder remains eligible. A historical tree that contains only generated host
 JSON has no authored JSON receiving scope; the original deterministic reader
 refuses rather than inventing a graph. The omitted historical objects remain
 available to their original Git custodian.
+
+## JR-10: JSONL sources as distinct, typed source occurrences
+
+A committed or pinned `.jsonl` file is one immutable UTF-8 source blob but
+contains zero or more records with **different source occurrences**. JR-1
+admission of the original file and byte digest occurs before row analysis.
+The original native FARS/SignCell lifecycle MUST receive each nonempty,
+syntactically admitted JSON row as its own resource Cell, with exact source
+namespace, original file path, file SHA-256 revision, 1-based line number,
+UTF-8 byte offset, byte length and raw-row SHA-256 digest. The original
+file itself remains a separate typed source-jsonl Cell; directed PROV-O
+`wasDerivedFrom` edges preserve row-to-file lineage without creating a
+new database, receipt authority, source owner or hash recipe for Git blobs.
+
+Repeated `id`, `val`, `data`, identical row bytes, or identical
+file names in different owner namespaces do NOT merge row subjects.
+Only an exact selected JSON Schema gives opaque keys their local typed
+meaning; missing schemas remain unresolved. A mention of the original
+JSONL filename is a text reference, not evidence that every row was read.
+PROV declarations remain unverified execution intent. Git-only selectors
+must accept a scope containing `.jsonl` but no `.json` or `.jsonld`.
+
+The reader is bounded to 4096 rows per selected file and the original
+JR-1 per-file and aggregate byte limits. Empty files, interior blank
+lines, malformed records, changed source bytes and over-budget lots refuse
+before returning any report. Ordinary JSON and JSON-LD resource identities
+and existing per-document properties remain unchanged. Source publication,
+an installed runtime consumer, data-use rights and Work acceptance each
+require an independent downstream receipt.

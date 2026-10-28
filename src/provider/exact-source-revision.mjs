@@ -7,6 +7,11 @@ import { createHash } from 'node:crypto';
 
 export const MAX_SOURCE_BYTES = 1_048_576;
 export const MAX_BATCH_BYTES = 16 * MAX_SOURCE_BYTES;
+/** One original JSON-valued resource family, including newline-delimited records. */
+export const JSON_RESOURCE_EXTENSIONS = Object.freeze([".json", ".jsonld", ".jsonl"]);
+export const isJsonResourceSourcePath = path => typeof path === "string" &&
+  JSON_RESOURCE_EXTENSIONS.some(extension => path.endsWith(extension));
+
 export const REPOSITORY_TEXT_EXTENSIONS = Object.freeze([
   ".json", ".jsonld", ".jsonl", ".jsonc",
   ".mjs", ".cjs", ".js", ".jsx", ".ts", ".tsx", ".mts", ".cts",

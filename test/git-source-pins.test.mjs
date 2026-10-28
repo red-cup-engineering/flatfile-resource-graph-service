@@ -98,3 +98,16 @@ test("committed JSONL, TSX, and Python remain selectable source evidence in the 
   assert.equal(gitTrackedLifecyclePins({ root, prefixes: ["data"] }).length, 2);
   assert.throws(() => gitTrackedLifecyclePins({ root, prefixes: ["src"] }), /no tracked JSON/);
 });
+
+
+test('Git HEAD with only JSONL obtains immutable pins, while arbitrary code remains reference evidence', t => {
+  const root = fixture(t);
+  git(root,'rm','-q','data/record.json');
+  mkdirSync(join(root,'data'),{recursive:true});
+  const contents='{"opaque":"source"}\n';
+  writeFileSync(join(root,'data','observations.jsonl'),contents);
+  git(root,'add','.');
+  git(root,'commit','-qm','Only original JSONL remains');
+  const pins=gitTrackedLifecyclePins({root,prefixes:['data']});
+  assert.deepEqual(pins,[{path:'data/observations.jsonl',digest:exactSourceRevision(contents)}]);
+});
