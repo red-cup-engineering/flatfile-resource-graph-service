@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { extname, resolve } from "node:path";
-import { exactSourceRevision, MAX_BATCH_BYTES, MAX_SOURCE_BYTES, REPOSITORY_TEXT_EXTENSIONS, isGeneratedHostStatePath } from "../provider/exact-source-revision.mjs";
+import { exactSourceRevision, MAX_BATCH_BYTES, MAX_SOURCE_BYTES, REPOSITORY_TEXT_EXTENSIONS, isGeneratedHostStatePath, isJsonResourceSourcePath } from "../provider/exact-source-revision.mjs";
 
 const SAFE_NAME = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\0]+$/u;
 const MAX_GIT_TREE_BYTES = 64 * MAX_SOURCE_BYTES;
@@ -74,7 +74,7 @@ export function gitTrackedLifecyclePins({ root, prefixes = [] }) {
     if (actualGitBlob !== match[3])
       throw new TypeError(`Git source differs from immutable HEAD: ${sourcePath}`);
     selections.push(Object.freeze({ path: sourcePath, digest: exactSourceRevision(bytes) }));
-    if (sourcePath.endsWith(".json") || sourcePath.endsWith(".jsonld")) jsonCount++;
+    if (isJsonResourceSourcePath(sourcePath)) jsonCount++;
   }
   if (jsonCount === 0) throw new TypeError("Git source scope has no tracked JSON resources");
   if (git(sourceRoot, "rev-parse", "--verify", "HEAD^{commit}").toString("ascii").trim() !== commit)
