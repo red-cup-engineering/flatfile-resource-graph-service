@@ -4,6 +4,7 @@ import { parseJsonValue } from "@red-cup-engineering/json-services-section/parse
 import { sourceNamespace } from "./source-namespace.mjs";
 import { encodeJsonGraphValue, projectAttributeCells } from "./attribute-projection.mjs";
 import { admitExactTextSourceRevisions } from "./exact-source-revision.mjs";
+import { jsonLinesOccurrences } from "./jsonl-occurrences.mjs";
 
 const RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 const RDFS = "http://www.w3.org/2000/01/rdf-schema#";
@@ -39,12 +40,29 @@ export function analyzeJsonResourceLifecycle({ namespace, files }) {
   const owner = sourceNamespace(namespace), sources = retainedCarrier(files);
   admitExactTextSourceRevisions(sources);
   const ordered = [...sources].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
-  const documents = ordered.filter(source => (source.path.endsWith(".json") || source.path.endsWith(".jsonld"))).map(source => {
-    let value;
-    try { value = parseJsonValue(source.text); }
-    catch { throw new TypeError(`selected JSON source does not parse: ${source.path}`); }
-    const focus = jsonSourceFocus(owner, source.path);
-    return { ...source, value, focus, resource: `${focus}:${source.revision}` };
+  // JSONL is a succession of separately witnessed source occurrences, not
+  // one unparseable JSON document or an inert file silently omitted by FARS.
+  // The physical Git blob and its SHA-256 pin remain one original source;
+  // line, UTF-8 byte span and row digest distinguish its individual claims.
+  const documents = ordered.flatMap(source => {
+    const isRows = source.path.endsWith(".jsonl");
+    if (!isRows && !source.path.endsWith(".json") && !source.path.endsWith(".jsonld")) return [];
+    const selections = isRows ? jsonLinesOccurrences(source).map(row => ({
+      ...source, path: `${source.path}#L${row.lineNumber}`, text: row.text,
+      sourceFilePath: source.path, occurrence: Object.freeze({
+        lineNumber: row.lineNumber, byteOffset: row.byteOffset,
+        byteLength: row.byteLength, rowContentDigest: row.rowContentDigest,
+      }),
+    })) : [source];
+    return selections.map(selected => {
+      let value;
+      try { value = parseJsonValue(selected.text); }
+      catch { throw new TypeError(`selected JSON source does not parse: ${selected.path}`); }
+      const focus = jsonSourceFocus(owner, selected.path);
+      const row = selected.occurrence?.rowContentDigest;
+      return { ...selected, value, focus,
+        resource: `${focus}:${source.revision}${row ? ":" + row : ""}` };
+    });
   });
   const schemaDocuments = documents.filter(source => record(source.value) &&
     source.value.$schema === META && iri(source.value.$id));
@@ -68,10 +86,13 @@ export function analyzeJsonResourceLifecycle({ namespace, files }) {
   };
   for (const document of documents) {
     const witness = Object.freeze({ kind: "fars.source-json-observation/v1", sourceNamespace: owner,
-      sourcePath: document.path, contentDigest: document.revision });
-    const refs = ordered.filter(source => source.path !== document.path && source.text.includes(document.path))
+      sourcePath: document.path, contentDigest: document.revision,
+      ...(document.occurrence ? { sourceFilePath: document.sourceFilePath,
+        sourceOccurrence: document.occurrence } : {}) });
+    const referencedPath = document.sourceFilePath ?? document.path;
+    const refs = ordered.filter(source => source.path !== referencedPath && source.text.includes(referencedPath))
       .map(source => Object.freeze({ sourcePath: source.path, contentDigest: source.revision,
-        kind: "text-reference", offset: source.text.indexOf(document.path) }));
+        kind: "text-reference", offset: source.text.indexOf(referencedPath) }));
     const intents = assertions.filter(row => row.resource === document.focus).map(row =>
       Object.freeze({ role: row.role, activity: row.activity, declarationPath: row.source.path,
         declarationDigest: row.source.revision }));
@@ -101,7 +122,18 @@ export function analyzeJsonResourceLifecycle({ namespace, files }) {
       }
     }
     const classification = intents.length ? "declared-connected" : refs.length ? "referenced" : "unclaimed-in-snapshot";
-    add(document.resource, "urn:fars:type", "urn:fars:type:source-json", witness);
+    add(document.resource, "urn:fars:type", document.occurrence
+      ? "urn:fars:type:source-jsonl-record" : "urn:fars:type:source-json", witness);
+    if (document.occurrence) {
+      const container = `${jsonSourceFocus(owner, document.sourceFilePath)}:${document.revision}`;
+      add(container, "urn:fars:type", "urn:fars:type:source-jsonl", witness);
+      add(container, "urn:fars:source-path", document.sourceFilePath, witness);
+      add(container, "urn:fars:source-revision", document.revision, witness);
+      add(document.resource, PROV + "wasDerivedFrom", container, witness);
+      add(document.resource, NAMESPACE + "line-number", document.occurrence.lineNumber, witness);
+      add(document.resource, NAMESPACE + "byte-offset", document.occurrence.byteOffset, witness);
+      add(document.resource, NAMESPACE + "row-digest", document.occurrence.rowContentDigest, witness);
+    }
     add(document.resource, "urn:fars:source-path", document.path, witness);
     add(document.resource, "urn:fars:source-revision", document.revision, witness);
     add(document.resource, "urn:fars:focus", document.focus, witness);
@@ -170,6 +202,8 @@ export function analyzeJsonResourceLifecycle({ namespace, files }) {
     for (const property of properties.filter(property => property.opaqueWithoutDefinition))
       actions.push({ action: "define-property-meaning", pointer: property.pointer, key: property.key });
     resources.push(Object.freeze({ sourcePath: document.path, contentDigest: document.revision,
+      ...(document.occurrence ? { sourceFilePath: document.sourceFilePath,
+        sourceOccurrence: document.occurrence } : {}),
       resource: document.resource, focus: document.focus, classification,
       references: Object.freeze(refs), declaredConnections: Object.freeze(intents),
       schema: retainedCarrier(schema), properties: Object.freeze(properties), actions: retainedCarrier(actions) }));
