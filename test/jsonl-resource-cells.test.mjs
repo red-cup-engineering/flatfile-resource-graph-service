@@ -4,6 +4,7 @@ import test from 'node:test';
 import { analyzeJsonResourceLifecycle, jsonSourceFocus } from '../src/provider/json-resource-lifecycle.mjs';
 import { receiveJsonResourceLifecycleFiles } from '../src/adapters/json-resource-lifecycle.mjs';
 import { isCell } from '@red-cup-engineering/signcell/cell';
+import { decodeJsonGraphValue } from '../src/provider/attribute-projection.mjs';
 
 const owner = 'https://github.com/red-cup-engineering/flatfile-resource-graph-service';
 const at = '2026-10-27T21:34:00.000Z';
@@ -37,7 +38,7 @@ test('each JSONL occurrence enters the SAME FARS/SignCell graph with original fi
     row.predicate === 'urn:fars:type' && row.object === 'urn:fars:type:source-jsonl'));
   const line = report.cells.find(row => row.subject === b.resource &&
     row.predicate.endsWith('line-number'));
-  assert.equal(line.object,2);
+  assert.equal(decodeJsonGraphValue(line.object),2);
   assert.equal(line.for[0].sourceOccurrence.lineNumber,2);
   assert.deepEqual(report.scope.sources.map(s=>s.sourcePath),['ingress/alias-map.jsonl']);
 });
