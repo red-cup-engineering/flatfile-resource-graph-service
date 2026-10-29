@@ -13,9 +13,6 @@
 // the operation, so this is where its verb contract now lives.
 
 import * as lagoonWorld from "../src/lagoon-world.mjs";
-import { readWorldRecord, seedWorld } from "../src/seed-world.mjs";
-import { migrateLegacyWorld } from "../src/legacy-world.mjs";
-import { recordHostObservation, OBSERVATION_SCHEMA } from "../src/world-observation.mjs";
 import { REFUSAL_SCHEMA } from "@red-cup-engineering/computer-data-engineering-services-section/operation-refusal-schema";
 
 const ROW_SCHEMA = {
@@ -39,7 +36,6 @@ look.spec = {
     properties: {
       address: {},
       placeAttributes: {},
-      placeObserved: { type: "object" },
       things: { type: "array" },
       recentDuties: { type: "array" },
     },
@@ -97,62 +93,3 @@ say.spec = {
   refusal: REFUSAL_SCHEMA,
 };
 say.effects = ["filesystem:write"];
-
-// constitute the world's first born entities (machines, platforms, places) from a dated record
-// {measuredAt, entities:[{kind, attributes}]}, given inline or by path. Idempotent.
-function seedWorldVerb({ path, record, recordPath }) {
-  if ((record === undefined) === (recordPath === undefined)) throw new TypeError("seed-world: give exactly one of record or recordPath");
-  return { results: seedWorld({ path, record: record ?? readWorldRecord(recordPath) }) };
-}
-seedWorldVerb.spec = {
-  args: {
-    type: "object",
-    properties: { path: { type: "string" }, record: { type: "object" }, recordPath: { type: "string" } },
-    required: ["path"],
-  },
-  returns: {
-    type: "object",
-    properties: { results: { type: "array", items: { type: "object", properties: { address: { type: "string" }, skipped: { type: "boolean" } }, required: ["address", "skipped"] } } },
-    required: ["results"],
-  },
-  refusal: REFUSAL_SCHEMA,
-};
-seedWorldVerb.effects = ["filesystem:read", "filesystem:write"];
-
-// record one host observation (scripts/status.mjs's hostStatus shape) as append-only,
-// time-stamped world facts; see ./world-observation for the fact schema.
-function recordHostObservationVerb({ path, status, t, observer }) {
-  return { schema: OBSERVATION_SCHEMA, ...recordHostObservation({ path, status, t, observer }) };
-}
-recordHostObservationVerb.spec = {
-  args: {
-    type: "object",
-    properties: { path: { type: "string" }, status: { type: "object" }, t: { type: "number" }, observer: { type: "string" } },
-    required: ["path", "status", "t"],
-  },
-  returns: {
-    type: "object",
-    properties: { schema: { type: "string" }, host: { type: "string" }, generation: {}, units: { type: "number" }, attempts: { type: "number" }, rows: { type: "number" } },
-    required: ["schema", "host", "units", "attempts", "rows"],
-  },
-  refusal: REFUSAL_SCHEMA,
-};
-recordHostObservationVerb.effects = ["filesystem:read", "filesystem:write"];
-
-// carry a world trace written in the old base64-CBOR row encoding into the current row encoding,
-// preserving every row exactly; the legacy file is only read.
-function migrateLegacyWorldVerb({ from, path }) {
-  return migrateLegacyWorld({ from, path });
-}
-migrateLegacyWorldVerb.spec = {
-  args: { type: "object", properties: { from: { type: "string" }, path: { type: "string" } }, required: ["from", "path"] },
-  returns: {
-    type: "object",
-    properties: { read: { type: "number" }, appended: { type: "number" }, skipped: { type: "number" }, refused: { type: "array" } },
-    required: ["read", "appended", "skipped", "refused"],
-  },
-  refusal: REFUSAL_SCHEMA,
-};
-migrateLegacyWorldVerb.effects = ["filesystem:read", "filesystem:write"];
-
-export { seedWorldVerb as "seed-world", recordHostObservationVerb as "record-host-observation", migrateLegacyWorldVerb as "migrate-legacy-world" };
