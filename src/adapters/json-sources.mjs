@@ -6,11 +6,21 @@ import { parseJsonValue } from "@red-cup-engineering/json-services-section/parse
 import { makeCell } from "../kernel/cells.mjs";
 import { projectAttributeCells } from "../provider/attribute-projection.mjs";
 import { defineProvider } from "../provider/provider.mjs";
-import { sourceNamespace } from "../provider/source-namespace.mjs";
 
 const MAX_SOURCE_BYTES = 1_048_576;
 const MAX_SOURCE_COUNT = 4096;
 const MAX_BATCH_BYTES = 16 * 1_048_576;
+
+function sourceNamespace(value) {
+  if (typeof value !== "string" || !value.trim()) throw new TypeError("a source-owned namespace is required");
+  let uri;
+  try { uri = new URL(value); }
+  catch { throw new TypeError("source namespace must be a qualified absolute URI"); }
+  if (!["https:", "urn:"].includes(uri.protocol) || uri.username || uri.password || uri.search || uri.hash) {
+    throw new TypeError("source namespace must be an HTTPS or URN identifier without credentials, query or fragment");
+  }
+  return value;
+}
 
 function sourceSelections(sources) {
   if (!Array.isArray(sources) || sources.length < 1 || sources.length > MAX_SOURCE_COUNT) {
@@ -70,72 +80,6 @@ export function selectCatalogJsonSources(catalog, groups) {
     }
   }
   return sourceSelections(selections);
-}
-
-/**
- * Consume Organizing's native one-shot seat-brief source pins without minting
- * a separate office registry. This is a documentary acquisition plan, NOT
- * an incumbency, source-root credential, complete-corpus claim or grant.
- *
- * A source pin needs the authenticated owner namespace/root at the actual
- * jsonSourcesProvider call. Historical and malformed selections cannot
- * silently become claims that a duty or office has no source.
- */
-export function selectSeatBriefJsonSources(brief) {
-  if (brief?.kind !== "organizing.enterprise.seat-brief" ||
-      !Array.isArray(brief.seats) || brief.seats.length === 0) {
-    throw new TypeError("an Organizing seat brief with held office readings is required");
-  }
-  const selected = new Map();
-  const unresolved = [];
-  let omitted = 0;
-  const receive = (pin, office, group, id) => {
-    if (pin === null) {
-      unresolved.push(Object.freeze({ office, group, id, reason: "no-source-pin" }));
-      return;
-    }
-    if (!pin || typeof pin !== "object" || Array.isArray(pin)
-      || typeof pin.path !== "string" || typeof pin.digest !== "string") {
-      throw new TypeError("seat brief source pin is malformed");
-    }
-    if (!pin.path.endsWith(".json")) {
-      unresolved.push(Object.freeze({ office, group, id, path: pin.path,
-        reason: "requires-appropriate-non-json-provider" }));
-      return;
-    }
-    const prior = selected.get(pin.path);
-    if (prior !== undefined && prior !== pin.digest) {
-      throw new TypeError("one agency path is pinned to conflicting source revisions");
-    }
-    selected.set(pin.path, pin.digest);
-  };
-  for (const seat of brief.seats) {
-    if (typeof seat?.office !== "string" || !seat.office
-      || !seat.sourceRecords || typeof seat.sourceRecords !== "object") {
-      throw new TypeError("seat brief does not carry the source-owning office contract");
-    }
-    receive(seat.source, seat.office, "offices", seat.office);
-    for (const group of ["duties", "skills", "works"]) {
-      const data = seat.sourceRecords[group];
-      if (!data || !Array.isArray(data.records) ||
-          !Number.isSafeInteger(data.omitted) || data.omitted < 0) {
-        throw new TypeError("seat brief source family is missing or unbounded");
-      }
-      omitted += data.omitted;
-      for (const entry of data.records) {
-        if (typeof entry?.id !== "string" || !entry.id ||
-            !Object.hasOwn(entry, "source")) throw new TypeError("seat brief source entry is malformed");
-        receive(entry.source, seat.office, group, entry.id);
-      }
-    }
-  }
-  const sources = selected.size === 0 ? Object.freeze([]) :
-    sourceSelections([...selected].map(([path, digest]) => ({ path, digest })));
-  return Object.freeze({
-    kind: "fars.seat-brief-json-selection",
-    sources, unresolved: Object.freeze(unresolved),
-    omitted, complete: unresolved.length === 0 && omitted === 0,
-  });
 }
 
 /**

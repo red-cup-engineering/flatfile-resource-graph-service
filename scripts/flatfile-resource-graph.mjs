@@ -4,12 +4,9 @@ import { getRecord } from "../src/kernel/record-store.mjs";
 import { replayEventLog, serializeState } from "../src/kernel/replay.mjs";
 import { loadFlatfiles } from "../src/substrate/read-flatfiles.mjs";
 import { readLog } from "@red-cup-engineering/semiotic-eavt-services-section/store";
-import { jsonSourcesProvider } from "../src/adapters/json-sources.mjs";
-import { composeProviders, serializeComposition } from "../src/provider/compositor.mjs";
 
 const USAGE = `flatfile-resource-graph <verb> [args]
 
-  source-json <root> <owner-namespace-URI> <observed-at>  # JSON [{path,digest}, ...] via stdin
   validate <root>
   lint <root>
   show <root> <slug-or-path>
@@ -21,37 +18,6 @@ const USAGE = `flatfile-resource-graph <verb> [args]
   read-imports <flatfile> <entity>
   read-operations <flatfile> <entity>
 `;
-
-const MAX_JSON_SOURCE_SELECTION_BYTES = 1_048_576;
-
-/**
- * Accept the original owner's explicit source pins, not a second catalog.
- * Bound stdin BEFORE parsing it or opening the source root; the original
- * jsonSourcesProvider retains sole custody of path/digest admission.
- */
-async function readJsonSelectionsFromStdin(stdin) {
-  if (!stdin || typeof stdin[Symbol.asyncIterator] !== "function")
-    throw new TypeError("source-json requires a bounded UTF-8 selector list on stdin");
-  const chunks = [];
-  let bytes = 0;
-  for await (const chunk of stdin) {
-    if (typeof chunk !== "string" && !(chunk instanceof Uint8Array))
-      throw new TypeError("source-json selection stream must carry bytes");
-    const buffer = Buffer.from(chunk);
-    bytes += buffer.length;
-    if (bytes > MAX_JSON_SOURCE_SELECTION_BYTES)
-      throw new RangeError("source-json selection exceeds its 1 MiB admission budget");
-    chunks.push(buffer);
-  }
-  if (bytes === 0) throw new TypeError("source-json requires a nonempty source selection");
-  let parsed;
-  try {
-    parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
-  } catch {
-    throw new TypeError("source-json selections must be valid UTF-8 JSON");
-  }
-  return parsed;
-}
 
 /** Run one verb against the given streams; the result is the exit status. */
 async function main({ argv, stdin, stdout, stderr }) {
@@ -69,18 +35,6 @@ async function main({ argv, stdin, stdout, stderr }) {
     return verb === undefined ? 2 : 0;
   }
   switch (verb) {
-    case "source-json": {
-      if (rest.length !== 3)
-        return usageError("source-json: expected <root> <owner-namespace-URI> <observed-at>");
-      const [root, namespace, observedAt] = rest;
-      if (typeof observedAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/u.test(observedAt)
-          || !Number.isFinite(Date.parse(observedAt)))
-        throw new TypeError("source-json requires an explicit observation instant");
-      const sources = await readJsonSelectionsFromStdin(stdin);
-      const provider = jsonSourcesProvider({ id: "fars-cli:source-json", root, namespace, sources });
-      const observed = await composeProviders([provider], { context: { observedAt } });
-      return printAndExit(serializeComposition(observed));
-    }
     case "validate":
     case "lint": {
       const [root] = rest;
