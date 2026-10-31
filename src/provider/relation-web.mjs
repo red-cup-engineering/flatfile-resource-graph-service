@@ -6,19 +6,32 @@ import {
   unique,
 } from "@red-cup-engineering/eavt-services-section";
 import { four } from "@red-cup-engineering/computer-data-engineering-services-section/four";
+import { admitCell, cell, cellSet, hasEvidence } from "@red-cup-engineering/signcell/cell";
 
 const freezeList = (values) => Object.freeze([...values]);
+const sourceClaims = new WeakMap();
 
 /**
  * DREW owns aggregate relation identity, occurrence provenance, and query.
  * The flatfile engine retains provider acquisition and resource/corpus lifecycle around it.
  */
 export function createProviderRelationWeb() {
-  return createRelationWeb();
+  const web = createRelationWeb();
+  sourceClaims.set(web, []);
+  return web;
 }
 
 export function observeProviderResource(web, { provider, resource, focus, observedAt, relations }) {
-  return web.observe({
+  const claims = [], occurrences = [];
+  for (const relation of relations) {
+    if (!hasEvidence(relation)) { occurrences.push(relation); continue; }
+    const native = admitCell(relation);
+    claims.push(cell(native.subject, native.predicate, native.object));
+    for (const side of ["for", "against"]) for (const witness of native[side])
+      occurrences.push(Object.freeze({ subject: native.subject, predicate: native.predicate,
+        object: native.object, polarity: side, evidence: witness }));
+  }
+  const observed = web.observe({
     source: Object.freeze({
       kind: "flatfile.provider-resource-observation",
       provider,
@@ -26,12 +39,25 @@ export function observeProviderResource(web, { provider, resource, focus, observ
       focus,
       observedAt,
     }),
-    relations,
+    relations: occurrences,
   });
+  // Retain authored unknown cells without inventing a positive occurrence.
+  // Update only after the original occurrence owner has admitted the lot.
+  sourceClaims.get(web)?.push(...claims);
+  return observed;
 }
 
 export function orderedRelations(web) {
-  return freezeList(web.events().flatMap((event) => event.relations));
+  return cellSet([
+    ...(sourceClaims.get(web) ?? []),
+    ...web.query().map(observation => cell(observation.subject, observation.predicate,
+      observation.object, { [polaritySide(observation.polarity) === "positive" ? "for" : "against"]: [
+        Object.freeze({ kind: "flatfile.drew-relation-occurrence", occurrence: observation.address,
+          provider: observation.source.provider, resource: observation.source.resource,
+          observedAt: observation.source.observedAt,
+          ...(Object.hasOwn(observation, "evidence") ? { evidence: observation.evidence } : {}) }),
+      ] })),
+  ]);
 }
 
 export function originsProjection(web) {
@@ -97,14 +123,16 @@ export function evidenceProjection(web) {
 export function settledStoreProjection(web, { claims = [] } = {}) {
   if (!Array.isArray(claims)) throw new TypeError("claims must be an array");
   const observations = web.query();
+  const native = orderedRelations(web);
+  const nativeByKey = new Map(native.map(at => [relationKey(at), at]));
   const ordered = [];
   const bySemanticIdentity = new Map();
-  for (const claim of [...claims, ...observations]) {
+  for (const claim of [...claims, ...native, ...observations]) {
     const key = relationKey(claim);
     if (bySemanticIdentity.has(key)) continue;
-    const cell = Object.freeze({ subject: claim.subject, predicate: claim.predicate, object: claim.object });
-    bySemanticIdentity.set(key, cell);
-    ordered.push(cell);
+    const at = nativeByKey.get(key) ?? cell(claim.subject, claim.predicate, claim.object);
+    bySemanticIdentity.set(key, at);
+    ordered.push(at);
   }
 
   const projected = evidenceProjection(web);
@@ -147,3 +175,4 @@ export function settledStoreProjection(web, { claims = [] } = {}) {
 }
 
 export { relationKey };
+

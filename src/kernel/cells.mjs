@@ -1,13 +1,12 @@
 import { RELATION_KEYS } from "../convention.mjs";
 import { buildEdges } from "../substrate/store.mjs";
+import { cell, triple } from "@red-cup-engineering/signcell/cell";
 
-// A PredicationCell is nothing but its triple — subject/predicate/object,
-// mirroring pymetrologic.predicating.PredicationCell: predication is
-// irreducibly triadic, no fourth field bolted on for value, source, or
-// line. What a cell is worth (T/F/BOT/TOP) lives in the store's knowledge
-// state, keyed by this triple, never on the cell itself.
+// Historical callers author an unasserted triple. SignCell owns its finite
+// carrier admission; provider acquisition later supplies witnessed evidence.
+// Durable FARS record identities retain their original JSON contract.
 export function makeCell({ subject, predicate, object }) {
-  return Object.freeze({ subject, predicate, object });
+  return triple(cell(subject, predicate, object));
 }
 
 // Reduces the corpus's richer Tier A edges (which also carry source and
@@ -29,5 +28,6 @@ export function loadCells(notes, { sources, relationKeys = RELATION_KEYS } = {})
   const edges = buildEdges(notes, { sources, relationKeys });
   return { cells: cellsFromEdges(edges) };
 }
+
 
 

@@ -1,41 +1,10 @@
-import { createHash } from "node:crypto";
-import { lstat, readFile, realpath } from "node:fs/promises";
-import { resolve } from "node:path";
-import { admitRelativePosixFilepath } from "@red-cup-engineering/computer-filepath-engineering-services-section/admit-relative-posix-filepath";
+import { admitSourceSelections as sourceSelections, readPinnedTextSources } from "./pinned-sources.mjs";
+import { cell } from "@red-cup-engineering/signcell/cell";
 import { parseJsonValue } from "@red-cup-engineering/json-services-section/parse-json-value";
 import { makeCell } from "../kernel/cells.mjs";
 import { projectAttributeCells } from "../provider/attribute-projection.mjs";
 import { defineProvider } from "../provider/provider.mjs";
 import { sourceNamespace } from "../provider/source-namespace.mjs";
-
-const MAX_SOURCE_BYTES = 1_048_576;
-const MAX_SOURCE_COUNT = 4096;
-const MAX_BATCH_BYTES = 16 * 1_048_576;
-
-function sourceSelections(sources) {
-  if (!Array.isArray(sources) || sources.length < 1 || sources.length > MAX_SOURCE_COUNT) {
-    throw new TypeError("select from 1 to 4096 source-pinned JSON records");
-  }
-  const admitted = sources.map(item => {
-    if (!item || typeof item !== "object" || Array.isArray(item) ||
-        Object.keys(item).some(key => !["path", "digest"].includes(key))) {
-      throw new TypeError("every source requires only path and digest");
-    }
-    const path = admitRelativePosixFilepath(item.path);
-    if (!path.endsWith(".json") || path.split("/").some(part =>
-      ["..", ".git", "node_modules", ".env"].includes(part))) {
-      throw new TypeError("selected sources must be normalized JSON records, not runtime or credential paths");
-    }
-    if (typeof item.digest !== "string" || !/^sha256:[a-f0-9]{64}$/u.test(item.digest)) {
-      throw new TypeError("every source must carry its owner's exact SHA-256 digest");
-    }
-    return Object.freeze({ path, digest: item.digest });
-  });
-  if (new Set(admitted.map(source => source.path)).size !== admitted.length) {
-    throw new TypeError("duplicate JSON source path");
-  }
-  return Object.freeze([...admitted].sort((a, b) => a.path.localeCompare(b.path)));
-}
 
 /**
  * Select existing JSON source records from a source-owned catalog. This is a
@@ -158,31 +127,11 @@ export function jsonSourcesProvider({ id, root, namespace, sources }) {
   const owner = sourceNamespace(namespace);
   const selected = sourceSelections(sources);
   return defineProvider({ id, async observe({ observedAt = new Date().toISOString() } = {}) {
-    const sourceRoot = await realpath(root);
     const resources = [];
-    let observedBytes = 0;
-    for (const { path, digest } of selected) {
-      const file = resolve(sourceRoot, path);
-      // Reject symlink aliases at any depth, and paths that cross the owner root.
-      if (await realpath(file) !== file) throw new TypeError(`JSON source changes its selected path: ${path}`);
-      const before = await lstat(file);
-      if (!before.isFile() || before.size > MAX_SOURCE_BYTES) {
-        throw new TypeError(`JSON source is not a bounded regular file: ${path}`);
-      }
-      if (observedBytes + before.size > MAX_BATCH_BYTES) {
-        throw new RangeError("JSON source batch exceeds its 16 MiB bounded observation budget");
-      }
-      const bytes = await readFile(file);
-      const after = await lstat(file);
-      if (bytes.length > MAX_SOURCE_BYTES || before.size !== bytes.length ||
-          before.mtimeMs !== after.mtimeMs || before.size !== after.size) {
-        throw new TypeError(`JSON source changed or exceeded its byte limit during observation: ${path}`);
-      }
-      observedBytes += bytes.length;
-      const revision = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
-      if (revision !== digest) throw new TypeError(`JSON source digest changed or is not owner-qualified: ${path}`);
+    const acquired = await readPinnedTextSources({ root, sources: selected });
+    for (const { path, revision, text } of acquired) {
       let record;
-      try { record = parseJsonValue(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
+      try { record = parseJsonValue(text); }
       catch (error) { throw new TypeError(`JSON source is not an admitted UTF-8 JSON value: ${path}: ${error.message}`); }
       if (record === null || typeof record !== "object" || Array.isArray(record)) {
         throw new TypeError(`JSON source must declare an object record: ${path}`);
@@ -197,8 +146,12 @@ export function jsonSourcesProvider({ id, root, namespace, sources }) {
         ...projectAttributeCells({ subject: resource, resource, attributes: record }),
       ];
       resources.push(Object.freeze({ resource, focus, observedAt,
-        cells: Object.freeze(cells), diagnostics: Object.freeze([]) }));
+        cells: Object.freeze(cells.map(at => cell(at.subject, at.predicate, at.object, { for: [
+          Object.freeze({ kind: "fars.source-json-observation/v1", sourceNamespace: owner,
+            sourcePath: path, contentDigest: revision, observedAt }),
+        ] }))), diagnostics: Object.freeze([]) }));
     }
     return Object.freeze({ resources: Object.freeze(resources), diagnostics: Object.freeze([]) });
   } });
 }
+

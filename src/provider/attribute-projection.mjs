@@ -1,5 +1,5 @@
 import { makeCell } from "../kernel/cells.mjs";
-import { canonicalize, identity } from "../kernel/identity.mjs";
+import { canonicalCarrier, semanticId } from "@red-cup-engineering/signcell/cell";
 
 export const FARS_ATTRIBUTE_NAMESPACE = "urn:fars:attribute:";
 export const FARS_ATTRIBUTE_WITNESS = "urn:fars:attribute-witness";
@@ -27,20 +27,39 @@ function plainRecord(value, label) {
 
 /** A frontmatter/JSON key becomes a collision-free graph predicate. */
 export function attributePredicate(key) {
-  return `${FARS_ATTRIBUTE_NAMESPACE}${encodeURIComponent(nonEmptyString(key, "attribute key").normalize("NFC"))}`;
+  if (typeof key !== "string") throw new TypeError("attribute key must be a string");
+  return `${FARS_ATTRIBUTE_NAMESPACE}${encodeURIComponent(key.normalize("NFC"))}`;
 }
 
 /**
  * Encode one admitted semiotic-JSON value as a typed graph literal.
  *
  * The payload is canonical JSON bytes (NFC strings, recursively sorted keys,
- * safe integers only), carried as base64url. The JSON grammar retains the
+ * finite JSON numbers), carried as base64url. The JSON grammar retains the
  * difference between strings, numbers, booleans, null, arrays, and objects;
  * unlike String(value), distinct values cannot collapse accidentally.
  */
 export function encodeJsonGraphValue(value) {
-  const bytes = Buffer.from(JSON.stringify(canonicalize(value)), "utf8");
+  const bytes = Buffer.from(JSON.stringify(canonicalJson(value)), "utf8");
   return `${FARS_JSON_VALUE_NAMESPACE}${bytes.toString("base64url")}`;
+}
+
+// Keep the existing JSON-literal wire format, while using SignCell's admitted
+// finite-number carrier. Historical ledger/record identity is not rewritten.
+function canonicalJson(value) {
+  const copied = canonicalCarrier(value);
+  const sort = item => {
+    if (Array.isArray(item)) return item.map(sort);
+    if (item !== null && typeof item === "object") {
+      if (Object.getPrototypeOf(item) !== Object.prototype)
+        throw new TypeError("graph JSON values must be JSON data");
+      return Object.fromEntries(Object.keys(item).sort().map(key => [key, sort(item[key])]));
+    }
+    if (!["string", "number", "boolean"].includes(typeof item) && item !== null)
+      throw new TypeError("graph JSON values must be JSON data");
+    return item;
+  };
+  return sort(copied);
 }
 
 export function decodeJsonGraphValue(value) {
@@ -60,7 +79,7 @@ export function decodeJsonGraphValue(value) {
 export function projectAttributeCells({ subject, resource, attributes }) {
   nonEmptyString(subject, "attribute subject");
   nonEmptyString(resource, "attribute resource");
-  const canonicalAttributes = plainRecord(canonicalize(plainRecord(attributes, "attributes")), "canonical attributes");
+  const canonicalAttributes = plainRecord(canonicalJson(plainRecord(attributes, "attributes")), "canonical attributes");
 
   const cells = [];
   for (const key of Object.keys(canonicalAttributes)) {
@@ -73,8 +92,8 @@ export function projectAttributeCells({ subject, resource, attributes }) {
 
     for (const occurrence of occurrences) {
       const object = encodeJsonGraphValue(occurrence.value);
-      const witness = identity({
-        kind: "fars.attribute-value-witness.v1",
+      const witness = semanticId({
+        kind: "fars.attribute-value-witness.v2",
         resource,
         subject,
         predicate,
@@ -96,5 +115,6 @@ export function projectAttributeCells({ subject, resource, attributes }) {
   }
   return Object.freeze(cells);
 }
+
 
 
